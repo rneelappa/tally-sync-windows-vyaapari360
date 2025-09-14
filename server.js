@@ -121,6 +121,12 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
         <SVTODATE>${toDate}</SVTODATE>`;
   }
 
+  // For Vouchers Collection, add additional parameters for detailed data
+  if (reportType === 'Vouchers') {
+    requestXml += `
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>`;
+  }
+
   requestXml += `
       </STATICVARIABLES>
     </DESC>
@@ -169,6 +175,10 @@ async function parseTallyResponse(xmlData) {
 
 // Convert voucher to JSON (XQuery-like transformation)
 function voucherToJson(voucher) {
+  // Handle both DayBook and Vouchers Collection formats
+  const ledgerEntries = voucher.ALLLEDGERENTRIES?.LIST || voucher.LEDGERENTRIES?.LIST || [];
+  const inventoryEntries = voucher.ALLINVENTORYENTRIES?.LIST || voucher.INVENTORYENTRIES?.LIST || [];
+  
   return {
     id: voucher.ALTERID || voucher.$?.VCHKEY || 'unknown',
     vchkey: voucher.$?.VCHKEY || '',
@@ -185,15 +195,15 @@ function voucherToJson(voucher) {
     voucherTypeId: voucher.VOUCHERTYPEID || '',
     voucherTypeName: voucher.VOUCHERTYPENAME || '',
     partyLedgerName: voucher.PARTYLEDGERNAME || '',
-    entries: (voucher.ALLLEDGERENTRIES?.LIST || []).map((entry, index) => ({
+    entries: Array.isArray(ledgerEntries) ? ledgerEntries.map((entry, index) => ({
       index: index + 1,
       ledgerName: entry.LEDGERNAME || '',
       amount: parseFloat(entry.AMOUNT || 0),
       isDeemedPositive: entry.$?.ISDEEMEDPOSITIVE === 'Yes',
       isPartyLedger: entry.$?.ISPARTYLEDGER === 'Yes',
       ledgerId: entry.LEDGERID || ''
-    })),
-    inventoryEntries: (voucher.ALLINVENTORYENTRIES?.LIST || []).map((entry, index) => ({
+    })) : [],
+    inventoryEntries: Array.isArray(inventoryEntries) ? inventoryEntries.map((entry, index) => ({
       index: index + 1,
       stockItemName: entry.STOCKITEMNAME || '',
       stockItemId: entry.STOCKITEMID || '',
@@ -204,7 +214,7 @@ function voucherToJson(voucher) {
       unit: entry.UNIT || '',
       godownName: entry.GODOWNNAME || '',
       godownId: entry.GODOWNID || ''
-    }))
+    })) : []
   };
 }
 
@@ -450,8 +460,15 @@ app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
     
     console.log(`🔄 Syncing data for ${companyId}/${divisionId} from ${fromDate} to ${toDate}`);
     
-    // Fetch data from Tally
-    const xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', fromDate, toDate);
+    // Fetch data from Tally - try Vouchers Collection first for detailed data
+    let xmlData;
+    try {
+      console.log('🔄 Trying Vouchers Collection for detailed data...');
+      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', fromDate, toDate);
+    } catch (error) {
+      console.log('⚠️ Vouchers Collection failed, falling back to DayBook...');
+      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', fromDate, toDate);
+    }
     const parsedData = await parseTallyResponse(xmlData);
     const vouchers = extractVouchers(parsedData);
     
