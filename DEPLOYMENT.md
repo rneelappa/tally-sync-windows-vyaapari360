@@ -1,9 +1,24 @@
 # 🚀 Railway Deployment Guide
 
-## Quick Start
+## Quick Start (Non-Interactive)
 
 ### 1. Deploy to Railway
 
+**Option A: Git-based Deployment (Recommended)**
+```bash
+# Push to your repository (Railway auto-deploys)
+git add .
+git commit -m "Deploy to Railway"
+git push origin main
+```
+
+**Option B: Railway Dashboard**
+1. Go to https://railway.app/dashboard
+2. Select your project: `appealing-wisdom`
+3. Select service: `tally-sync-vyaapari360`
+4. Click "Deploy" button
+
+**Option C: Railway CLI (Non-Interactive)**
 ```bash
 # Install Railway CLI
 npm install -g @railway/cli
@@ -14,48 +29,77 @@ railway login
 # Initialize project
 railway init
 
-# Deploy
-railway up
+# Deploy with timeout (prevents hanging)
+timeout 60s railway up || echo "Deploy completed or timed out"
 ```
 
 ### 2. Set Environment Variables
 
 ```bash
-# Set Tally URL (replace with your ngrok URL)
-railway variables set TALLY_URL=https://e34014bc0666.ngrok-free.app
+# Set variables in one command (non-interactive)
+railway variables --set "TALLY_URL=https://e34014bc0666.ngrok-free.app" --set "NODE_ENV=production" --skip-deploys
 
-# Set environment
-railway variables set NODE_ENV=production
+# Verify variables
+railway variables --json | jq '.data[] | select(.key == "TALLY_URL" or .key == "NODE_ENV")'
 ```
 
 ### 3. Get Your API URL
 
 ```bash
-# Get the deployment URL
-railway domain
+# Get the deployment URL (non-interactive)
+railway status --json | jq -r '.data.publicDomain'
+
+# Or use the known URL
+echo "https://tally-sync-vyaapari360-production.up.railway.app"
 ```
 
 ## 🧪 Testing Your Deployment
 
-### Test Health Endpoint
+### Automated Testing (Recommended)
 
 ```bash
-curl https://your-railway-url.railway.app/api/v1/health
+# Run comprehensive test suite
+./test-railway-deployment.sh
+
+# Quick health check
+./monitor-api.sh check
 ```
 
-### Test Sync from Tally
+### Manual Testing
 
 ```bash
-curl -X POST https://your-railway-url.railway.app/api/v1/sync/SKM/MAIN \
+# Test Health Endpoint
+curl -s "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/health" | jq
+
+# Test Sync from Tally
+curl -X POST "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/sync/SKM/MAIN" \
   -H "Content-Type: application/json" \
-  -d '{"fromDate": "20250901", "toDate": "20250930"}'
+  -d '{"fromDate": "20250901", "toDate": "20250930"}' | jq
+
+# Test Get Vouchers
+curl -s "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/vouchers/SKM/MAIN" | jq
 ```
 
-### Test Get Vouchers
+## 📊 Monitoring Your Deployment
+
+### Continuous Monitoring
 
 ```bash
-curl https://your-railway-url.railway.app/api/v1/vouchers/SKM/MAIN
+# Start monitoring (runs continuously)
+./monitor-api.sh monitor
+
+# Quick health check
+./monitor-api.sh check
+
+# View recent logs
+./monitor-api.sh logs
 ```
+
+### Railway Dashboard Monitoring
+
+1. **Logs**: https://railway.app/dashboard → Select Project → Select Service → Logs
+2. **Metrics**: https://railway.app/dashboard → Select Project → Select Service → Metrics
+3. **Environment Variables**: https://railway.app/dashboard → Select Project → Select Service → Variables
 
 ## 🔗 Lovable.dev Integration
 
