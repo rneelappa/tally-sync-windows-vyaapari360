@@ -262,6 +262,16 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
+// Clear storage endpoint for testing
+app.post('/api/v1/clear', (req, res) => {
+  xmlStorage.clear();
+  res.json({
+    success: true,
+    message: 'Storage cleared successfully',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Get vouchers with filtering
 app.get('/api/v1/vouchers/:companyId/:divisionId', async (req, res) => {
   try {
