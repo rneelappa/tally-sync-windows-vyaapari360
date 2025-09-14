@@ -659,13 +659,70 @@ function VoucherDetail({ voucher, companyId, divisionId, onClose, onUpdate }) {
 3. MAIN VOUCHER MANAGER COMPONENT
 =================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import VoucherList from './VoucherList';
 import VoucherDetail from './VoucherDetail';
 
-function VoucherManager({ companyId = 'SKM', divisionId = 'MAIN' }) {
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL,
+  process.env.REACT_APP_SUPABASE_ANON_KEY
+);
+
+function VoucherManager({ selectedDivisionId = null }) {
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [companyId, setCompanyId] = useState(null);
+  const [divisionId, setDivisionId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch company and division data from Supabase
+  useEffect(() => {
+    const fetchDivisionData = async () => {
+      try {
+        setLoading(true);
+        
+        if (selectedDivisionId) {
+          // If a specific division is selected, fetch its data
+          const { data: division, error: divisionError } = await supabase
+            .from('vyaapari_divisions')
+            .select('company_id, division_id, tally_url, tally_sync_enabled')
+            .eq('division_id', selectedDivisionId)
+            .single();
+
+          if (divisionError) throw divisionError;
+          
+          setCompanyId(division.company_id);
+          setDivisionId(division.division_id);
+        } else {
+          // If no specific division, fetch the first available division
+          const { data: divisions, error: divisionsError } = await supabase
+            .from('vyaapari_divisions')
+            .select('company_id, division_id, tally_url, tally_sync_enabled')
+            .eq('tally_sync_enabled', true)
+            .limit(1);
+
+          if (divisionsError) throw divisionsError;
+          
+          if (divisions && divisions.length > 0) {
+            setCompanyId(divisions[0].company_id);
+            setDivisionId(divisions[0].division_id);
+          } else {
+            throw new Error('No divisions with Tally sync enabled found');
+          }
+        }
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching division data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDivisionData();
+  }, [selectedDivisionId]);
 
   const handleVoucherSelect = (voucher) => {
     setSelectedVoucher(voucher);
@@ -682,8 +739,39 @@ function VoucherManager({ companyId = 'SKM', divisionId = 'MAIN' }) {
     // You might want to refresh the list here
   };
 
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading">Loading division data...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="error-container">
+        <div className="error">Error: {error}</div>
+        <button onClick={() => window.location.reload()} className="retry-btn">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!companyId || !divisionId) {
+    return (
+      <div className="error-container">
+        <div className="error">No valid division found for Tally sync</div>
+      </div>
+    );
+  }
+
   return (
     <div className="voucher-manager">
+      <div className="division-info">
+        <h2>Tally Sync - {companyId} / {divisionId}</h2>
+      </div>
+      
       <VoucherList 
         companyId={companyId}
         divisionId={divisionId}
@@ -1061,24 +1149,177 @@ export default VoucherManager;
   color: #dc3545;
 }
 
+/* Division Selector Styles */
+.division-selector {
+  margin: 20px 0;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.division-selector label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.division-dropdown {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+  background: white;
+  cursor: pointer;
+}
+
+.division-dropdown:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.division-info {
+  background: #e3f2fd;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #2196f3;
+}
+
+.division-info h2 {
+  margin: 0;
+  color: #1976d2;
+  font-size: 18px;
+}
+
+.no-division-selected {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6c757d;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.loading-container, .error-container {
+  text-align: center;
+  padding: 40px 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.retry-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 15px;
+}
+
+.retry-btn:hover {
+  background: #0056b3;
+}
+
+4. DIVISION SELECTOR COMPONENT
+==============================
+
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL,
+  process.env.REACT_APP_SUPABASE_ANON_KEY
+);
+
+function DivisionSelector({ onDivisionSelect, selectedDivisionId }) {
+  const [divisions, setDivisions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchDivisions = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('vyaapari_divisions')
+          .select('company_id, division_id, division_name, tally_sync_enabled')
+          .eq('tally_sync_enabled', true)
+          .order('company_id, division_name');
+
+        if (error) throw error;
+        setDivisions(data || []);
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching divisions:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDivisions();
+  }, []);
+
+  if (loading) return <div className="loading">Loading divisions...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
+  return (
+    <div className="division-selector">
+      <label htmlFor="division-select">Select Division:</label>
+      <select
+        id="division-select"
+        value={selectedDivisionId || ''}
+        onChange={(e) => onDivisionSelect(e.target.value)}
+        className="division-dropdown"
+      >
+        <option value="">Choose a division...</option>
+        {divisions.map((division) => (
+          <option key={division.division_id} value={division.division_id}>
+            {division.company_id} - {division.division_name || division.division_id}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 5. USAGE EXAMPLE
 ================
 
-import React from 'react';
+import React, { useState } from 'react';
 import VoucherManager from './components/VoucherManager';
+import DivisionSelector from './components/DivisionSelector';
 
 function App() {
+  const [selectedDivisionId, setSelectedDivisionId] = useState(null);
+
+  const handleDivisionSelect = (divisionId) => {
+    setSelectedDivisionId(divisionId || null);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
         <h1>Tally ERP Integration</h1>
+        <DivisionSelector 
+          onDivisionSelect={handleDivisionSelect}
+          selectedDivisionId={selectedDivisionId}
+        />
       </header>
       
       <main>
-        <VoucherManager 
-          companyId="SKM" 
-          divisionId="MAIN" 
-        />
+        {selectedDivisionId ? (
+          <VoucherManager selectedDivisionId={selectedDivisionId} />
+        ) : (
+          <div className="no-division-selected">
+            <p>Please select a division to view vouchers</p>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -1238,6 +1479,20 @@ IMPORTANT CHANGES FOR LOVABLE.DEV:
 - SUPABASE_URL: Your Supabase project URL
 - SUPABASE_SERVICE_ROLE_KEY: Your Supabase service role key
 - NODE_ENV: production
+
+🔧 LOVABLE.DEV ENVIRONMENT VARIABLES:
+Set these in your Lovable.dev project settings:
+
+```bash
+# Railway API Configuration
+REACT_APP_API_BASE_URL=https://tally-sync-vyaapari360-production.up.railway.app
+
+# Supabase Configuration (for fetching division data)
+REACT_APP_SUPABASE_URL=https://hycyhnjsldiokfkpqzoz.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+**Note:** The Railway API automatically fetches Tally URLs from Supabase using the service role key, so you don't need to manage Tally URLs in Lovable.dev.
 
 ✅ BENEFITS FOR LOVABLE.DEV:
 - Multi-tenant support: Each division can have different Tally instances
