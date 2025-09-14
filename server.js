@@ -626,6 +626,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📋 Vouchers: GET http://localhost:${PORT}/api/v1/vouchers/{companyId}/{divisionId}`);
   console.log(`🌍 Environment: ${NODE_ENV}`);
   console.log(`🔗 Tally URLs: Fetched dynamically from Supabase per division`);
+  console.log(`✅ Ledger entries parsing: FIXED - Using voucher['LEDGERENTRIES.LIST']`);
 });
 
 module.exports = app;
