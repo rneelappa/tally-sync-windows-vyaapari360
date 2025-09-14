@@ -190,22 +190,24 @@ function useVouchers(companyId, divisionId) {
   };
 }
 
-SAMPLE REACT COMPONENT
-======================
+COMPREHENSIVE VOUCHER UI COMPONENTS
+====================================
+
+1. VOUCHER LIST COMPONENT
+=========================
 
 import React, { useState, useEffect } from 'react';
 import { useVouchers } from './hooks/useVouchers';
 
-function VoucherManager() {
+function VoucherList({ companyId, divisionId, onVoucherSelect }) {
   const {
     vouchers,
     loading,
     error,
     pagination,
     fetchVouchers,
-    updateVoucher,
     syncFromTally
-  } = useVouchers('SKM', 'MAIN');
+  } = useVouchers(companyId, divisionId);
 
   const [filters, setFilters] = useState({
     from: '',
@@ -225,79 +227,864 @@ function VoucherManager() {
     }
   };
 
-  const handleUpdateNarration = async (voucherId, newNarration) => {
-    const result = await updateVoucher(voucherId, { narration: newNarration });
-    if (result) {
-      alert('Voucher updated successfully!');
-    }
-  };
-
   const handleFilter = () => {
     fetchVouchers(filters);
   };
 
-  if (loading) return <div>Loading vouchers...</div>;
-  if (error) return <div>Error: {error}</div>;
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const year = dateStr.substring(0, 4);
+    const month = dateStr.substring(4, 6);
+    const day = dateStr.substring(6, 8);
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(amount);
+  };
+
+  if (loading) return <div className="loading">Loading vouchers...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
 
   return (
-    <div className="voucher-manager">
-      <div className="controls">
+    <div className="voucher-list-container">
+      {/* Header Controls */}
+      <div className="voucher-header">
+        <h2>Vouchers ({pagination.total})</h2>
         <button onClick={handleSync} className="sync-btn">
           🔄 Sync from Tally
         </button>
-        
-        <div className="filters">
+      </div>
+
+      {/* Filters */}
+      <div className="filters-section">
+        <div className="filter-row">
           <input
             type="date"
             placeholder="From Date"
             value={filters.from}
             onChange={(e) => setFilters({...filters, from: e.target.value})}
+            className="filter-input"
           />
           <input
             type="date"
             placeholder="To Date"
             value={filters.to}
             onChange={(e) => setFilters({...filters, to: e.target.value})}
+            className="filter-input"
           />
+          <select
+            value={filters.type}
+            onChange={(e) => setFilters({...filters, type: e.target.value})}
+            className="filter-select"
+          >
+            <option value="">All Types</option>
+            <option value="Payment">Payment</option>
+            <option value="Purchase">Purchase</option>
+            <option value="Sales">Sales</option>
+            <option value="Receipt">Receipt</option>
+          </select>
           <input
             type="text"
-            placeholder="Search..."
+            placeholder="Search vouchers..."
             value={filters.search}
             onChange={(e) => setFilters({...filters, search: e.target.value})}
+            className="filter-input search-input"
           />
-          <button onClick={handleFilter}>Filter</button>
+          <button onClick={handleFilter} className="filter-btn">Filter</button>
         </div>
       </div>
 
-      <div className="voucher-grid">
-        {vouchers.map(voucher => (
-          <div key={voucher.id} className="voucher-card">
-            <h3>{voucher.type} - {voucher.number}</h3>
-            <p><strong>Date:</strong> {voucher.date}</p>
-            <p><strong>Party:</strong> {voucher.partyLedgerName}</p>
-            <p><strong>Narration:</strong> {voucher.narration || 'No narration'}</p>
-            
-            <div className="voucher-actions">
-              <button 
-                onClick={() => handleUpdateNarration(voucher.id, 'Updated via Lovable.dev')}
-                className="update-btn"
-              >
-                Update Narration
-              </button>
-            </div>
-          </div>
-        ))}
+      {/* Voucher Table */}
+      <div className="voucher-table-container">
+        <table className="voucher-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Number</th>
+              <th>Party</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vouchers.map(voucher => {
+              const totalAmount = voucher.entries?.reduce((sum, entry) => sum + Math.abs(entry.amount), 0) || 0;
+              return (
+                <tr key={voucher.id} className="voucher-row" onClick={() => onVoucherSelect(voucher)}>
+                  <td>{formatDate(voucher.date)}</td>
+                  <td>
+                    <span className={`voucher-type ${voucher.type?.toLowerCase()}`}>
+                      {voucher.type}
+                    </span>
+                  </td>
+                  <td className="voucher-number">{voucher.number}</td>
+                  <td className="party-name">{voucher.partyLedgerName || 'N/A'}</td>
+                  <td className="amount">{formatAmount(totalAmount)}</td>
+                  <td>
+                    <span className={`status ${voucher.isDeleted ? 'deleted' : 'active'}`}>
+                      {voucher.isDeleted ? 'Deleted' : 'Active'}
+                    </span>
+                  </td>
+                  <td>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onVoucherSelect(voucher);
+                      }}
+                      className="view-btn"
+                    >
+                      View Details
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
+      {/* Pagination */}
       <div className="pagination">
-        <span>Page {pagination.page} of {pagination.pages}</span>
-        <span>Total: {pagination.total} vouchers</span>
+        <div className="pagination-info">
+          <span>Page {pagination.page} of {pagination.pages}</span>
+          <span>Total: {pagination.total} vouchers</span>
+        </div>
+        <div className="pagination-controls">
+          <button 
+            disabled={pagination.page <= 1}
+            onClick={() => fetchVouchers({...filters, page: pagination.page - 1})}
+            className="page-btn"
+          >
+            Previous
+          </button>
+          <button 
+            disabled={pagination.page >= pagination.pages}
+            onClick={() => fetchVouchers({...filters, page: pagination.page + 1})}
+            className="page-btn"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
+2. VOUCHER DETAIL COMPONENT
+===========================
+
+import React, { useState, useEffect } from 'react';
+import { TallyAPIService } from './services/TallyAPIService';
+
+function VoucherDetail({ voucher, companyId, divisionId, onClose, onUpdate }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedVoucher, setEditedVoucher] = useState(voucher);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const api = new TallyAPIService();
+
+  useEffect(() => {
+    setEditedVoucher(voucher);
+  }, [voucher]);
+
+  const handleUpdate = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await api.updateVoucher(companyId, divisionId, voucher.id, {
+        narration: editedVoucher.narration,
+        entries: editedVoucher.entries
+      });
+      
+      if (result.success) {
+        onUpdate(result.data);
+        setIsEditing(false);
+        alert('Voucher updated successfully!');
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEntryUpdate = (index, field, value) => {
+    const updatedEntries = [...editedVoucher.entries];
+    updatedEntries[index] = { ...updatedEntries[index], [field]: value };
+    setEditedVoucher({ ...editedVoucher, entries: updatedEntries });
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const year = dateStr.substring(0, 4);
+    const month = dateStr.substring(4, 6);
+    const day = dateStr.substring(6, 8);
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(amount);
+  };
+
+  const totalDebit = editedVoucher.entries?.reduce((sum, entry) => 
+    entry.amount > 0 ? sum + entry.amount : sum, 0) || 0;
+  const totalCredit = editedVoucher.entries?.reduce((sum, entry) => 
+    entry.amount < 0 ? sum + Math.abs(entry.amount) : sum, 0) || 0;
+
+  return (
+    <div className="voucher-detail-overlay">
+      <div className="voucher-detail-modal">
+        {/* Header */}
+        <div className="voucher-detail-header">
+          <h2>Voucher Details - {voucher.type} #{voucher.number}</h2>
+          <div className="header-actions">
+            {!isEditing ? (
+              <button onClick={() => setIsEditing(true)} className="edit-btn">
+                Edit
+              </button>
+            ) : (
+              <div className="edit-actions">
+                <button onClick={handleUpdate} disabled={loading} className="save-btn">
+                  {loading ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={() => setIsEditing(false)} className="cancel-btn">
+                  Cancel
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} className="close-btn">×</button>
+          </div>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="error-message">
+            {error}
+          </div>
+        )}
+
+        {/* Voucher Information */}
+        <div className="voucher-info-section">
+          <div className="info-grid">
+            <div className="info-item">
+              <label>Date:</label>
+              <span>{formatDate(voucher.date)}</span>
+            </div>
+            <div className="info-item">
+              <label>Type:</label>
+              <span className={`voucher-type ${voucher.type?.toLowerCase()}`}>
+                {voucher.type}
+              </span>
+            </div>
+            <div className="info-item">
+              <label>Number:</label>
+              <span>{voucher.number}</span>
+            </div>
+            <div className="info-item">
+              <label>Party:</label>
+              <span>{voucher.partyLedgerName || 'N/A'}</span>
+            </div>
+            <div className="info-item">
+              <label>Status:</label>
+              <span className={`status ${voucher.isDeleted ? 'deleted' : 'active'}`}>
+                {voucher.isDeleted ? 'Deleted' : 'Active'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Narration */}
+        <div className="narration-section">
+          <label>Narration:</label>
+          {isEditing ? (
+            <textarea
+              value={editedVoucher.narration || ''}
+              onChange={(e) => setEditedVoucher({...editedVoucher, narration: e.target.value})}
+              className="narration-input"
+              rows="3"
+            />
+          ) : (
+            <div className="narration-display">
+              {voucher.narration || 'No narration'}
+            </div>
+          )}
+        </div>
+
+        {/* Ledger Entries */}
+        <div className="ledger-entries-section">
+          <h3>Ledger Entries</h3>
+          <div className="entries-table-container">
+            <table className="entries-table">
+              <thead>
+                <tr>
+                  <th>Ledger Name</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {editedVoucher.entries?.map((entry, index) => (
+                  <tr key={index}>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={entry.ledgerName}
+                          onChange={(e) => handleEntryUpdate(index, 'ledgerName', e.target.value)}
+                          className="entry-input"
+                        />
+                      ) : (
+                        entry.ledgerName
+                      )}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={entry.amount > 0 ? entry.amount : ''}
+                          onChange={(e) => handleEntryUpdate(index, 'amount', parseFloat(e.target.value) || 0)}
+                          className="amount-input"
+                        />
+                      ) : (
+                        entry.amount > 0 ? formatAmount(entry.amount) : '-'
+                      )}
+                    </td>
+                    <td>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={entry.amount < 0 ? Math.abs(entry.amount) : ''}
+                          onChange={(e) => handleEntryUpdate(index, 'amount', -(parseFloat(e.target.value) || 0))}
+                          className="amount-input"
+                        />
+                      ) : (
+                        entry.amount < 0 ? formatAmount(Math.abs(entry.amount)) : '-'
+                      )}
+                    </td>
+                    <td>
+                      {isEditing && (
+                        <button 
+                          onClick={() => {
+                            const updatedEntries = editedVoucher.entries.filter((_, i) => i !== index);
+                            setEditedVoucher({...editedVoucher, entries: updatedEntries});
+                          }}
+                          className="delete-entry-btn"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="totals-row">
+                  <td><strong>Total</strong></td>
+                  <td><strong>{formatAmount(totalDebit)}</strong></td>
+                  <td><strong>{formatAmount(totalCredit)}</strong></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* Inventory Entries */}
+        {editedVoucher.inventoryEntries?.length > 0 && (
+          <div className="inventory-entries-section">
+            <h3>Inventory Entries</h3>
+            <div className="inventory-table-container">
+              <table className="inventory-table">
+                <thead>
+                  <tr>
+                    <th>Item Name</th>
+                    <th>Quantity</th>
+                    <th>Rate</th>
+                    <th>Amount</th>
+                    <th>Unit</th>
+                    <th>Godown</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editedVoucher.inventoryEntries.map((item, index) => (
+                    <tr key={index}>
+                      <td>{item.stockItemName}</td>
+                      <td>{item.billedQuantity}</td>
+                      <td>{formatAmount(item.rate)}</td>
+                      <td>{formatAmount(item.amount)}</td>
+                      <td>{item.unit}</td>
+                      <td>{item.godownName}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Export Options */}
+        <div className="export-section">
+          <h3>Export Options</h3>
+          <div className="export-buttons">
+            <button 
+              onClick={() => {
+                const xmlUrl = `${api.baseURL}/voucher/${companyId}/${divisionId}/${voucher.id}/xml`;
+                window.open(xmlUrl, '_blank');
+              }}
+              className="export-btn"
+            >
+              Export as Tally XML
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+3. MAIN VOUCHER MANAGER COMPONENT
+=================================
+
+import React, { useState } from 'react';
+import VoucherList from './VoucherList';
+import VoucherDetail from './VoucherDetail';
+
+function VoucherManager({ companyId = 'SKM', divisionId = 'MAIN' }) {
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
+  const [showDetail, setShowDetail] = useState(false);
+
+  const handleVoucherSelect = (voucher) => {
+    setSelectedVoucher(voucher);
+    setShowDetail(true);
+  };
+
+  const handleCloseDetail = () => {
+    setShowDetail(false);
+    setSelectedVoucher(null);
+  };
+
+  const handleVoucherUpdate = (updatedVoucher) => {
+    setSelectedVoucher(updatedVoucher);
+    // You might want to refresh the list here
+  };
+
+  return (
+    <div className="voucher-manager">
+      <VoucherList 
+        companyId={companyId}
+        divisionId={divisionId}
+        onVoucherSelect={handleVoucherSelect}
+      />
+      
+      {showDetail && selectedVoucher && (
+        <VoucherDetail
+          voucher={selectedVoucher}
+          companyId={companyId}
+          divisionId={divisionId}
+          onClose={handleCloseDetail}
+          onUpdate={handleVoucherUpdate}
+        />
+      )}
+    </div>
+  );
+}
+
 export default VoucherManager;
+
+4. CSS STYLING (Add to your CSS file)
+=====================================
+
+/* Voucher List Styles */
+.voucher-list-container {
+  padding: 20px;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.voucher-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.sync-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.sync-btn:hover {
+  background: #0056b3;
+}
+
+.filters-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.filter-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-input, .filter-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filter-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.voucher-table-container {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.voucher-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.voucher-table th {
+  background: #f8f9fa;
+  padding: 15px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.voucher-table td {
+  padding: 12px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.voucher-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.voucher-row:hover {
+  background-color: #f8f9fa;
+}
+
+.voucher-type {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.voucher-type.payment { background: #e3f2fd; color: #1976d2; }
+.voucher-type.purchase { background: #fff3e0; color: #f57c00; }
+.voucher-type.sales { background: #e8f5e8; color: #388e3c; }
+.voucher-type.receipt { background: #f3e5f5; color: #7b1fa2; }
+
+.status.active { color: #28a745; font-weight: 500; }
+.status.deleted { color: #dc3545; font-weight: 500; }
+
+.view-btn {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.page-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Voucher Detail Modal Styles */
+.voucher-detail-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.voucher-detail-modal {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.voucher-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.edit-btn, .save-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.close-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.voucher-info-section {
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.info-item label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.narration-section {
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.narration-section label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #495057;
+}
+
+.narration-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.narration-display {
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  min-height: 60px;
+}
+
+.ledger-entries-section, .inventory-entries-section {
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.entries-table-container, .inventory-table-container {
+  overflow-x: auto;
+  margin-top: 15px;
+}
+
+.entries-table, .inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.entries-table th, .inventory-table th {
+  background: #f8f9fa;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.entries-table td, .inventory-table td {
+  padding: 12px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.totals-row {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.entry-input, .amount-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.delete-entry-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.export-section {
+  padding: 20px;
+}
+
+.export-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.loading, .error {
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+}
+
+.error {
+  color: #dc3545;
+}
+
+5. USAGE EXAMPLE
+================
+
+import React from 'react';
+import VoucherManager from './components/VoucherManager';
+
+function App() {
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Tally ERP Integration</h1>
+      </header>
+      
+      <main>
+        <VoucherManager 
+          companyId="SKM" 
+          divisionId="MAIN" 
+        />
+      </main>
+    </div>
+  );
+}
+
+export default App;
 
 VOUCHER DATA STRUCTURE
 ======================
