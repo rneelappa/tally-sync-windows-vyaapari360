@@ -26,8 +26,11 @@ A production-ready XML-native API for Tally ERP integration, designed for Railwa
 ```bash
 NODE_ENV=production
 PORT=3000
-TALLY_URL=https://your-ngrok-url.ngrok-free.app
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
+
+**Note:** Tally URLs are now stored per division in Supabase, not as environment variables.
 
 ## 🚀 Railway Deployment
 
@@ -47,8 +50,9 @@ railway init
 ### 2. Set Environment Variables
 
 ```bash
-# Set Tally URL
-railway variables set TALLY_URL=https://your-ngrok-url.ngrok-free.app
+# Set Supabase configuration
+railway variables set SUPABASE_URL=https://your-project.supabase.co
+railway variables set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Set environment
 railway variables set NODE_ENV=production

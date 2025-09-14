@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
@@ -19,8 +20,18 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.raw({ type: 'application/xml', limit: '10mb' }));
 
 // Configuration
-const TALLY_URL = process.env.TALLY_URL || 'https://e34014bc0666.ngrok-free.app';
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Supabase configuration
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // XML parser
 const parser = new xml2js.Parser({
@@ -38,6 +49,56 @@ const builder = new xml2js.Builder({
 
 // In-memory XML storage (for Railway - consider Redis for production)
 const xmlStorage = new Map();
+
+// Cache for Tally URLs to avoid repeated Supabase calls
+const tallyUrlCache = new Map();
+
+// Fetch Tally URL from Supabase for a specific division
+async function getTallyUrl(companyId, divisionId) {
+  const cacheKey = `${companyId}/${divisionId}`;
+  
+  // Check cache first
+  if (tallyUrlCache.has(cacheKey)) {
+    const cached = tallyUrlCache.get(cacheKey);
+    // Cache for 5 minutes
+    if (Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached.url;
+    }
+  }
+  
+  try {
+    console.log(`🔍 Fetching Tally URL for ${companyId}/${divisionId} from Supabase...`);
+    
+    const { data, error } = await supabase
+      .from('divisions')
+      .select('tally_url')
+      .eq('company_id', companyId)
+      .eq('division_id', divisionId)
+      .single();
+    
+    if (error) {
+      console.error('❌ Error fetching Tally URL:', error.message);
+      throw new Error(`Failed to fetch Tally URL: ${error.message}`);
+    }
+    
+    if (!data || !data.tally_url) {
+      throw new Error(`No Tally URL found for ${companyId}/${divisionId}`);
+    }
+    
+    // Cache the URL
+    tallyUrlCache.set(cacheKey, {
+      url: data.tally_url,
+      timestamp: Date.now()
+    });
+    
+    console.log(`✅ Found Tally URL: ${data.tally_url}`);
+    return data.tally_url;
+    
+  } catch (error) {
+    console.error('❌ Error getting Tally URL:', error.message);
+    throw error;
+  }
+}
 
 // Helper function to create Tally XML request
 function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') {
@@ -70,13 +131,16 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
 }
 
 // Fetch data from Tally
-async function fetchTallyData(reportType = 'DayBook', fromDate = '', toDate = '') {
+async function fetchTallyData(companyId, divisionId, reportType = 'DayBook', fromDate = '', toDate = '') {
   try {
-    console.log(`🔄 Fetching ${reportType} from Tally...`);
+    console.log(`🔄 Fetching ${reportType} from Tally for ${companyId}/${divisionId}...`);
+    
+    // Get Tally URL from Supabase
+    const tallyUrl = await getTallyUrl(companyId, divisionId);
     
     const requestXml = createTallyRequest(reportType, fromDate, toDate);
     
-    const response = await axios.post(TALLY_URL, requestXml, {
+    const response = await axios.post(tallyUrl, requestXml, {
       headers: {
         'Content-Type': 'application/xml',
         'ngrok-skip-browser-warning': 'true'
@@ -387,7 +451,7 @@ app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
     console.log(`🔄 Syncing data for ${companyId}/${divisionId} from ${fromDate} to ${toDate}`);
     
     // Fetch data from Tally
-    const xmlData = await fetchTallyData('DayBook', fromDate, toDate);
+    const xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', fromDate, toDate);
     const parsedData = await parseTallyResponse(xmlData);
     const vouchers = extractVouchers(parsedData);
     
@@ -530,10 +594,10 @@ app.use((req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Tally XML API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/v1/health`);
-  console.log(`🔄 Sync endpoint: POST http://localhost:${PORT}/api/v1/sync/SKM/MAIN`);
-  console.log(`📋 Vouchers: GET http://localhost:${PORT}/api/v1/vouchers/SKM/MAIN`);
+  console.log(`🔄 Sync endpoint: POST http://localhost:${PORT}/api/v1/sync/{companyId}/{divisionId}`);
+  console.log(`📋 Vouchers: GET http://localhost:${PORT}/api/v1/vouchers/{companyId}/{divisionId}`);
   console.log(`🌍 Environment: ${NODE_ENV}`);
-  console.log(`🔗 Tally URL: ${TALLY_URL}`);
+  console.log(`🔗 Tally URLs: Fetched dynamically from Supabase per division`);
 });
 
 module.exports = app;

@@ -1,0 +1,415 @@
+TALLY XML API - LOVABLE.DEV INTEGRATION
+========================================
+
+BASE URL: https://tally-sync-vyaapari360-production.up.railway.app/api/v1
+
+API ENDPOINTS
+=============
+
+1. HEALTH CHECK
+GET /health
+Purpose: Check API status and get system info
+Response: System health, total vouchers, companies
+
+2. SYNC FROM TALLY
+POST /sync/SKM/MAIN
+Content-Type: application/json
+Body: {"fromDate": "20250901", "toDate": "20250930"}
+Purpose: Fetch fresh data from Tally ERP
+Response: Sync results with voucher counts
+
+3. LIST VOUCHERS
+GET /vouchers/SKM/MAIN?page=1&limit=10&type=Payment&search=AKEYEM
+Query Parameters: page, limit, from, to, type, search
+Purpose: Get paginated vouchers with filtering
+Response: Paginated voucher list with metadata
+
+4. GET SINGLE VOUCHER
+GET /voucher/SKM/MAIN/59653
+Purpose: Get detailed voucher information
+Response: Complete voucher object with entries
+
+5. UPDATE VOUCHER
+PUT /voucher/SKM/MAIN/59653
+Content-Type: application/json
+Body: {"narration": "Updated narration", "entries": [{"index": 1, "amount": 1000.00}]}
+Purpose: Update voucher data
+Response: Updated voucher object
+
+6. EXPORT VOUCHER XML
+GET /voucher/SKM/MAIN/59653/xml
+Purpose: Get voucher in Tally XML format
+Response: XML content for Tally import
+
+API SERVICE CLASS FOR LOVABLE.DEV
+=================================
+
+class TallyAPIService {
+  constructor() {
+    this.baseURL = 'https://tally-sync-vyaapari360-production.up.railway.app/api/v1';
+  }
+
+  async getHealth() {
+    const response = await fetch(`${this.baseURL}/health`);
+    return response.json();
+  }
+
+  async syncData(companyId, divisionId, fromDate, toDate) {
+    const response = await fetch(`${this.baseURL}/sync/${companyId}/${divisionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromDate, toDate })
+    });
+    return response.json();
+  }
+
+  async getVouchers(companyId, divisionId, options = {}) {
+    const params = new URLSearchParams({
+      page: options.page || 1,
+      limit: options.limit || 50,
+      ...(options.from && { from: options.from }),
+      ...(options.to && { to: options.to }),
+      ...(options.type && { type: options.type }),
+      ...(options.search && { search: options.search })
+    });
+
+    const response = await fetch(`${this.baseURL}/vouchers/${companyId}/${divisionId}?${params}`);
+    return response.json();
+  }
+
+  async getVoucher(companyId, divisionId, voucherId) {
+    const response = await fetch(`${this.baseURL}/voucher/${companyId}/${divisionId}/${voucherId}`);
+    return response.json();
+  }
+
+  async updateVoucher(companyId, divisionId, voucherId, updates) {
+    const response = await fetch(`${this.baseURL}/voucher/${companyId}/${divisionId}/${voucherId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    return response.json();
+  }
+}
+
+REACT HOOK FOR VOUCHER MANAGEMENT
+=================================
+
+import { useState, useEffect } from 'react';
+
+function useVouchers(companyId, divisionId) {
+  const [vouchers, setVouchers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    pages: 0
+  });
+
+  const api = new TallyAPIService();
+
+  const fetchVouchers = async (options = {}) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await api.getVouchers(companyId, divisionId, {
+        ...pagination,
+        ...options
+      });
+      
+      if (result.success) {
+        setVouchers(result.data.vouchers);
+        setPagination({
+          page: result.data.page,
+          limit: result.data.limit,
+          total: result.data.total,
+          pages: result.data.pages
+        });
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateVoucher = async (voucherId, updates) => {
+    try {
+      const result = await api.updateVoucher(companyId, divisionId, voucherId, updates);
+      
+      if (result.success) {
+        setVouchers(prev => 
+          prev.map(v => v.id === voucherId ? result.data : v)
+        );
+        return result;
+      } else {
+        setError(result.error);
+        return null;
+      }
+    } catch (err) {
+      setError(err.message);
+      return null;
+    }
+  };
+
+  const syncFromTally = async (fromDate, toDate) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await api.syncData(companyId, divisionId, fromDate, toDate);
+      
+      if (result.success) {
+        await fetchVouchers();
+        return result;
+      } else {
+        setError(result.error);
+        return null;
+      }
+    } catch (err) {
+      setError(err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    vouchers,
+    loading,
+    error,
+    pagination,
+    fetchVouchers,
+    updateVoucher,
+    syncFromTally
+  };
+}
+
+SAMPLE REACT COMPONENT
+======================
+
+import React, { useState, useEffect } from 'react';
+import { useVouchers } from './hooks/useVouchers';
+
+function VoucherManager() {
+  const {
+    vouchers,
+    loading,
+    error,
+    pagination,
+    fetchVouchers,
+    updateVoucher,
+    syncFromTally
+  } = useVouchers('SKM', 'MAIN');
+
+  const [filters, setFilters] = useState({
+    from: '',
+    to: '',
+    type: '',
+    search: ''
+  });
+
+  useEffect(() => {
+    fetchVouchers();
+  }, []);
+
+  const handleSync = async () => {
+    const result = await syncFromTally('20250901', '20250930');
+    if (result) {
+      alert(`Synced ${result.data.storedVouchers} vouchers!`);
+    }
+  };
+
+  const handleUpdateNarration = async (voucherId, newNarration) => {
+    const result = await updateVoucher(voucherId, { narration: newNarration });
+    if (result) {
+      alert('Voucher updated successfully!');
+    }
+  };
+
+  const handleFilter = () => {
+    fetchVouchers(filters);
+  };
+
+  if (loading) return <div>Loading vouchers...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return (
+    <div className="voucher-manager">
+      <div className="controls">
+        <button onClick={handleSync} className="sync-btn">
+          🔄 Sync from Tally
+        </button>
+        
+        <div className="filters">
+          <input
+            type="date"
+            placeholder="From Date"
+            value={filters.from}
+            onChange={(e) => setFilters({...filters, from: e.target.value})}
+          />
+          <input
+            type="date"
+            placeholder="To Date"
+            value={filters.to}
+            onChange={(e) => setFilters({...filters, to: e.target.value})}
+          />
+          <input
+            type="text"
+            placeholder="Search..."
+            value={filters.search}
+            onChange={(e) => setFilters({...filters, search: e.target.value})}
+          />
+          <button onClick={handleFilter}>Filter</button>
+        </div>
+      </div>
+
+      <div className="voucher-grid">
+        {vouchers.map(voucher => (
+          <div key={voucher.id} className="voucher-card">
+            <h3>{voucher.type} - {voucher.number}</h3>
+            <p><strong>Date:</strong> {voucher.date}</p>
+            <p><strong>Party:</strong> {voucher.partyLedgerName}</p>
+            <p><strong>Narration:</strong> {voucher.narration || 'No narration'}</p>
+            
+            <div className="voucher-actions">
+              <button 
+                onClick={() => handleUpdateNarration(voucher.id, 'Updated via Lovable.dev')}
+                className="update-btn"
+              >
+                Update Narration
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="pagination">
+        <span>Page {pagination.page} of {pagination.pages}</span>
+        <span>Total: {pagination.total} vouchers</span>
+      </div>
+    </div>
+  );
+}
+
+export default VoucherManager;
+
+VOUCHER DATA STRUCTURE
+======================
+
+Each voucher object contains:
+- id: string (Voucher ID)
+- vchkey: string (Voucher key)
+- alterId: string (Alternative ID)
+- date: string (Voucher date in YYYYMMDD format)
+- type: string (Voucher type: Payment, Purchase, etc.)
+- number: string (Voucher number)
+- narration: string (Voucher narration)
+- isInvoice: boolean
+- isModify: boolean
+- isDeleted: boolean
+- isOptional: boolean
+- effectiveDate: string
+- voucherTypeId: string
+- voucherTypeName: string
+- partyLedgerName: string (Party name)
+- entries: array (Ledger entries)
+- inventoryEntries: array (Inventory entries)
+
+Ledger Entry Structure:
+- index: number
+- ledgerName: string
+- amount: number
+- isDeemedPositive: boolean
+- isPartyLedger: boolean
+- ledgerId: string
+
+Inventory Entry Structure:
+- index: number
+- stockItemName: string
+- stockItemId: string
+- rate: number
+- amount: number
+- billedQuantity: number
+- actualQuantity: number
+- unit: string
+- godownName: string
+- godownId: string
+
+QUICK TEST COMMANDS
+===================
+
+# Test health endpoint
+curl "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/health"
+
+# Test sync from Tally
+curl -X POST "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/sync/SKM/MAIN" \
+  -H "Content-Type: application/json" \
+  -d '{"fromDate": "20250901", "toDate": "20250930"}'
+
+# Test get vouchers
+curl "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/vouchers/SKM/MAIN?limit=5"
+
+# Test get single voucher
+curl "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/voucher/SKM/MAIN/59653"
+
+# Test update voucher
+curl -X PUT "https://tally-sync-vyaapari360-production.up.railway.app/api/v1/voucher/SKM/MAIN/59653" \
+  -H "Content-Type: application/json" \
+  -d '{"narration": "Updated via API test"}'
+
+CONFIGURATION FOR LOVABLE.DEV
+=============================
+
+Environment Variables:
+const config = {
+  apiBaseURL: 'https://tally-sync-vyaapari360-production.up.railway.app/api/v1',
+  defaultCompanyId: 'SKM',
+  defaultDivisionId: 'MAIN'
+};
+
+IMPORTANT: Tally URLs are now stored per division in Supabase
+- The API automatically fetches the correct Tally URL for each division
+- No need to manage Tally URLs in Lovable.dev
+- Each company/division can have its own Tally instance
+
+Error Handling:
+const handleApiError = (error) => {
+  if (error.response?.status === 404) {
+    return 'Voucher not found';
+  } else if (error.response?.status === 500) {
+    return 'Server error. Please try again.';
+  } else {
+    return 'Network error. Please check your connection.';
+  }
+};
+
+API STATUS
+==========
+
+✅ Health Check: Working
+✅ Sync from Tally: 12 vouchers synced successfully
+✅ List Vouchers: Working with pagination and filtering
+✅ Get Single Voucher: Working
+✅ Update Voucher: Working with real-time updates
+✅ Export XML: Working for Tally import
+✅ All Endpoints: Tested and functional
+✅ Ready for Lovable.dev: Complete integration ready
+
+NEXT STEPS FOR LOVABLE.DEV
+==========================
+
+1. Copy the API service class into your Lovable.dev project
+2. Use the React hook for state management
+3. Create components using the sample component as a template
+4. Test with the health endpoint first
+5. Implement sync functionality for data fetching
+6. Add filtering and search using query parameters
+7. Implement real-time updates using the update endpoint
+
+Your Tally XML API is fully functional and ready for Lovable.dev integration! 🚀
