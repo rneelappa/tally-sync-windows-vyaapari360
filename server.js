@@ -176,9 +176,9 @@ async function parseTallyResponse(xmlData) {
 // Convert voucher to JSON (XQuery-like transformation)
 function voucherToJson(voucher) {
   // Handle both DayBook and Vouchers Collection formats
-  // DayBook uses LEDGERENTRIES.LIST, Vouchers Collection uses ALLLEDGERENTRIES.LIST
-  const ledgerEntries = voucher.LEDGERENTRIES?.LIST || voucher.ALLLEDGERENTRIES?.LIST || [];
-  const inventoryEntries = voucher.INVENTORYENTRIES?.LIST || voucher.ALLINVENTORYENTRIES?.LIST || [];
+  // DayBook uses 'LEDGERENTRIES.LIST' (with dot in property name), Vouchers Collection uses ALLLEDGERENTRIES.LIST
+  const ledgerEntries = voucher['LEDGERENTRIES.LIST'] || voucher.ALLLEDGERENTRIES?.LIST || [];
+  const inventoryEntries = voucher['INVENTORYENTRIES.LIST'] || voucher.ALLINVENTORYENTRIES?.LIST || [];
   
   return {
     id: voucher.ALTERID || voucher.$?.VCHKEY || 'unknown',
