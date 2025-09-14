@@ -381,24 +381,16 @@ IMPORTANT: Tally URLs are now stored per division in Supabase
 SUPABASE SETUP REQUIRED:
 ========================
 
-1. Create a `divisions` table in your Supabase database:
-```sql
-CREATE TABLE divisions (
-  id SERIAL PRIMARY KEY,
-  company_id TEXT NOT NULL,
-  division_id TEXT NOT NULL,
-  tally_url TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(company_id, division_id)
-);
-```
+1. The `vyaapari_divisions` table already exists in your Supabase database with Tally configuration columns.
 
-2. Insert division data:
+2. Update existing division data with Tally URLs:
 ```sql
-INSERT INTO divisions (company_id, division_id, tally_url) VALUES
-('SKM', 'MAIN', 'https://your-ngrok-url.ngrok-free.app'),
-('SKM', 'BRANCH1', 'https://another-ngrok-url.ngrok-free.app');
+UPDATE vyaapari_divisions 
+SET 
+  tally_url = 'https://your-ngrok-url.ngrok-free.app',
+  tally_company_name = 'Your Company Name',
+  tally_sync_enabled = true
+WHERE company_id = 'SKM' AND division_id = 'MAIN';
 ```
 
 3. Set Railway environment variables:
@@ -448,9 +440,9 @@ IMPORTANT CHANGES FOR LOVABLE.DEV:
 - No need to manage Tally URLs in Lovable.dev
 - The API automatically handles the correct Tally URL per division
 
-📋 SUPABASE TABLE STRUCTURE NEEDED:
-- Table: `divisions`
-- Columns: `company_id`, `division_id`, `tally_url`
+📋 SUPABASE TABLE STRUCTURE (ALREADY EXISTS):
+- Table: `vyaapari_divisions` (already created in main ERP)
+- Columns: `company_id`, `division_id`, `tally_url`, `tally_company_name`, `tally_sync_enabled`
 - Example data:
   - company_id: 'SKM', division_id: 'MAIN', tally_url: 'https://abc123.ngrok-free.app'
   - company_id: 'SKM', division_id: 'BRANCH1', tally_url: 'https://def456.ngrok-free.app'
