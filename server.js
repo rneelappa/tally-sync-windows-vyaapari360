@@ -176,8 +176,9 @@ async function parseTallyResponse(xmlData) {
 // Convert voucher to JSON (XQuery-like transformation)
 function voucherToJson(voucher) {
   // Handle both DayBook and Vouchers Collection formats
-  const ledgerEntries = voucher.ALLLEDGERENTRIES?.LIST || voucher.LEDGERENTRIES?.LIST || [];
-  const inventoryEntries = voucher.ALLINVENTORYENTRIES?.LIST || voucher.INVENTORYENTRIES?.LIST || [];
+  // DayBook uses LEDGERENTRIES.LIST, Vouchers Collection uses ALLLEDGERENTRIES.LIST
+  const ledgerEntries = voucher.LEDGERENTRIES?.LIST || voucher.ALLLEDGERENTRIES?.LIST || [];
+  const inventoryEntries = voucher.INVENTORYENTRIES?.LIST || voucher.ALLINVENTORYENTRIES?.LIST || [];
   
   return {
     id: voucher.ALTERID || voucher.$?.VCHKEY || 'unknown',
@@ -199,8 +200,8 @@ function voucherToJson(voucher) {
       index: index + 1,
       ledgerName: entry.LEDGERNAME || '',
       amount: parseFloat(entry.AMOUNT || 0),
-      isDeemedPositive: entry.$?.ISDEEMEDPOSITIVE === 'Yes',
-      isPartyLedger: entry.$?.ISPARTYLEDGER === 'Yes',
+      isDeemedPositive: entry.ISDEEMEDPOSITIVE === 'Yes',
+      isPartyLedger: entry.ISPARTYLEDGER === 'Yes',
       ledgerId: entry.LEDGERID || ''
     })) : [],
     inventoryEntries: Array.isArray(inventoryEntries) ? inventoryEntries.map((entry, index) => ({
