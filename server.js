@@ -459,7 +459,10 @@ function extractVouchers(parsedData, fromDate = '', toDate = '') {
   let dataSource = null;
   
   // Try different possible structures
-  if (parsedData.ENVELOPE?.BODY?.DATA) {
+  if (parsedData.ENVELOPE?.VOUCHER) {
+    dataSource = { VOUCHER: parsedData.ENVELOPE.VOUCHER };
+    console.log('📋 Found data in ENVELOPE.VOUCHER structure (VyaapariDateFilteredReport)');
+  } else if (parsedData.ENVELOPE?.BODY?.DATA) {
     dataSource = parsedData.ENVELOPE.BODY.DATA;
     console.log('📋 Found data in ENVELOPE.BODY.DATA structure');
   } else if (parsedData.RESPONSE?.BODY?.DATA) {
@@ -542,6 +545,36 @@ function extractVouchers(parsedData, fromDate = '', toDate = '') {
     }
     
     console.log(`✅ Extracted ${vouchers.length} vouchers from custom TDL format`);
+    return vouchers;
+  }
+  
+  // Process direct VOUCHER structure (from VyaapariDateFilteredReport TDL)
+  if (dataSource.VOUCHER) {
+    console.log('📊 Processing direct VOUCHER structure from VyaapariDateFilteredReport...');
+    const voucherArray = Array.isArray(dataSource.VOUCHER) ? 
+      dataSource.VOUCHER : [dataSource.VOUCHER];
+    
+    voucherArray.forEach(voucher => {
+      vouchers.push({
+        GUID: normalize(voucher.GUID),
+        VOUCHERNUMBER: normalize(voucher.VOUCHERNUMBER),
+        VOUCHERTYPENAME: normalize(voucher.VOUCHERTYPENAME),
+        DATE: normalize(voucher.DATE),
+        PARTYLEDGERNAME: normalize(voucher.PARTYLEDGERNAME),
+        NARRATION: normalize(voucher.NARRATION),
+        AMOUNT: parseFloat(normalize(voucher.AMOUNT) || 0),
+        ISINVOICE: normalize(voucher.ISINVOICE) === '1' || normalize(voucher.ISINVOICE) === 'Yes',
+        ISACCOUNTING: normalize(voucher.ISACCOUNTING) === '1' || normalize(voucher.ISACCOUNTING) === 'Yes',
+        ISINVENTORY: normalize(voucher.ISINVENTORY) === '1' || normalize(voucher.ISINVENTORY) === 'Yes',
+        REFERENCE: normalize(voucher.REFERENCE),
+        REFERENCEDATE: normalize(voucher.REFERENCEDATE),
+        PLACEOFSUPPLY: normalize(voucher.PLACEOFSUPPLY),
+        entries: [],
+        inventoryEntries: []
+      });
+    });
+    
+    console.log(`✅ Extracted ${vouchers.length} vouchers from VyaapariDateFilteredReport`);
     return vouchers;
   }
   
