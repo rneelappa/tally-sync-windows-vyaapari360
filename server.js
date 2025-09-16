@@ -524,8 +524,10 @@ function extractMasterData(parsedData, dataType) {
   // Handle Summary report formats (Group Summary, Stock Summary)
   if (parsedData.ENVELOPE?.DSPACCNAME) {
     console.log(`📋 Found ${dataType} in Summary report format (DSPACCNAME)`);
+    console.log(`🔍 Debug: DSPACCNAME structure:`, Object.keys(parsedData.ENVELOPE.DSPACCNAME));
     const nameArray = Array.isArray(parsedData.ENVELOPE.DSPACCNAME) ? 
       parsedData.ENVELOPE.DSPACCNAME : [parsedData.ENVELOPE.DSPACCNAME];
+    console.log(`📊 Debug: Processing ${nameArray.length} ${dataType} items...`);
     
     nameArray.forEach((nameItem, index) => {
       if (nameItem.DSPDISPNAME) {
