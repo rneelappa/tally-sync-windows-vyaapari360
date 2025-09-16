@@ -112,9 +112,184 @@ async function getTallyUrl(companyId, divisionId) {
   }
 }
 
-// Helper function to create Tally XML request
+// Helper function to create proper Tally XML requests
 function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') {
-  let requestXml = `<?xml version="1.0" encoding="utf-8"?>
+  console.log(`🔧 Creating Tally request: ${reportType}, from: ${fromDate}, to: ${toDate}`);
+  
+  // Default to current month if no dates provided
+  if (!fromDate || !toDate) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    fromDate = `${year}${month}01`;
+    toDate = `${year}${month}${new Date(year, now.getMonth() + 1, 0).getDate().toString().padStart(2, '0')}`;
+    console.log(`📅 Using default dates: ${fromDate} to ${toDate}`);
+  }
+
+  let requestXml;
+
+  if (reportType === 'Vouchers' || reportType === 'DayBook') {
+    // Comprehensive voucher request with detailed TDL
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>DayBook</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVFROMDATE>${fromDate}</SVFROMDATE>
+        <SVTODATE>${toDate}</SVTODATE>
+        <EXPLODEFLAG>Yes</EXPLODEFLAG>
+      </STATICVARIABLES>
+      <TDL>
+        <TDLMESSAGE>
+          <REPORT NAME="DayBook">
+            <FORMS>List</FORMS>
+            <VARIABLE>SVFromDate,SVToDate</VARIABLE>
+            <OBJECTS>Voucher</OBJECTS>
+            <FILTERS>FilterByDate</FILTERS>
+          </REPORT>
+          
+          <FORM NAME="List">
+            <TOPPARTS>Part1</TOPPARTS>
+            <XMLTAG>DAYBOOK</XMLTAG>
+          </FORM>
+          
+          <PART NAME="Part1">
+            <TOPLINES>Line1</TOPLINES>
+            <REPEAT>Line1 : VoucherCollection</REPEAT>
+            <SCROLLED>Vertical</SCROLLED>
+          </PART>
+          
+          <LINE NAME="Line1">
+            <FIELDS>FldVoucherNumber,FldVoucherType,FldDate,FldNarration,FldPartyName,FldAmount,FldGUID</FIELDS>
+            <XMLTAG>VOUCHER</XMLTAG>
+          </LINE>
+          
+          <FIELD NAME="FldVoucherNumber">
+            <SET>$VoucherNumber</SET>
+            <XMLTAG>VOUCHERNUMBER</XMLTAG>
+          </FIELD>
+          
+          <FIELD NAME="FldVoucherType">
+            <SET>$VoucherTypeName</SET>
+            <XMLTAG>VOUCHERTYPENAME</XMLTAG>
+          </FIELD>
+          
+          <FIELD NAME="FldDate">
+            <SET>$Date</SET>
+            <XMLTAG>DATE</XMLTAG>
+          </FIELD>
+          
+          <FIELD NAME="FldNarration">
+            <SET>$Narration</SET>
+            <XMLTAG>NARRATION</XMLTAG>
+          </FIELD>
+          
+          <FIELD NAME="FldPartyName">
+            <SET>$PartyLedgerName</SET>
+            <XMLTAG>PARTYLEDGERNAME</XMLTAG>
+          </FIELD>
+          
+          <FIELD NAME="FldAmount">
+            <SET>$Amount</SET>
+            <XMLTAG>AMOUNT</XMLTAG>
+          </FIELD>
+          
+          <FIELD NAME="FldGUID">
+            <SET>$GUID</SET>
+            <XMLTAG>GUID</XMLTAG>
+          </FIELD>
+          
+          <COLLECTION NAME="VoucherCollection">
+            <TYPE>Voucher</TYPE>
+            <FILTERS>FilterByDate</FILTERS>
+          </COLLECTION>
+          
+          <SYSTEM TYPE="Formulae" NAME="FilterByDate">
+            <FORMULA>$Date >= ##SVFromDate AND $Date <= ##SVToDate AND NOT $IsCancelled AND NOT $IsOptional</FORMULA>
+          </SYSTEM>
+        </TDLMESSAGE>
+      </TDL>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+  } else if (reportType === 'Ledger') {
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>List of Accounts</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+  } else if (reportType === 'Group') {
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>List of Groups</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+  } else if (reportType === 'StockItem') {
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>List of Stock Items</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+  } else if (reportType === 'VoucherType') {
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>List of Voucher Types</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+  } else {
+    // Generic request
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
     <VERSION>1</VERSION>
@@ -125,26 +300,15 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   <BODY>
     <DESC>
       <STATICVARIABLES>
-        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>`;
-
-  if (fromDate && toDate) {
-    requestXml += `
-        <SVFROMDATE>${fromDate}</SVFROMDATE>
-        <SVTODATE>${toDate}</SVTODATE>`;
-  }
-
-  // For Vouchers Collection, add additional parameters for detailed data
-  if (reportType === 'Vouchers') {
-    requestXml += `
-        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>`;
-  }
-
-  requestXml += `
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        ${fromDate && toDate ? `<SVFROMDATE>${fromDate}</SVFROMDATE><SVTODATE>${toDate}</SVTODATE>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
 </ENVELOPE>`;
+  }
 
+  console.log(`📤 Generated XML request for ${reportType}`);
   return requestXml;
 }
 
@@ -260,10 +424,63 @@ function extractMasterData(parsedData, dataType) {
 // Extract vouchers from Tally response
 function extractVouchers(parsedData) {
   const vouchers = [];
-  const envelope = parsedData.ENVELOPE;
+  console.log('🔍 Extracting vouchers from parsed data...');
   
-  if (envelope && envelope.BODY && envelope.BODY.DATA) {
-    const dataArray = Array.isArray(envelope.BODY.DATA) ? envelope.BODY.DATA : [envelope.BODY.DATA];
+  // Handle different response structures
+  let dataSource = null;
+  
+  // Try different possible structures
+  if (parsedData.ENVELOPE?.BODY?.DATA) {
+    dataSource = parsedData.ENVELOPE.BODY.DATA;
+    console.log('📋 Found data in ENVELOPE.BODY.DATA structure');
+  } else if (parsedData.RESPONSE?.BODY?.DATA) {
+    dataSource = parsedData.RESPONSE.BODY.DATA;
+    console.log('📋 Found data in RESPONSE.BODY.DATA structure');
+  } else if (parsedData.DAYBOOK) {
+    dataSource = { DAYBOOK: parsedData.DAYBOOK };
+    console.log('📋 Found data in DAYBOOK structure');
+  } else if (parsedData.TALLYMESSAGE) {
+    dataSource = { TALLYMESSAGE: parsedData.TALLYMESSAGE };
+    console.log('📋 Found data in TALLYMESSAGE structure');
+  }
+  
+  if (!dataSource) {
+    console.warn('⚠️ No recognizable data structure found in response');
+    console.log('Available keys:', Object.keys(parsedData));
+    return vouchers;
+  }
+  
+  // Process DAYBOOK structure (from our TDL)
+  if (dataSource.DAYBOOK && dataSource.DAYBOOK.VOUCHER) {
+    console.log('📊 Processing DAYBOOK vouchers...');
+    const voucherArray = Array.isArray(dataSource.DAYBOOK.VOUCHER) ? 
+      dataSource.DAYBOOK.VOUCHER : [dataSource.DAYBOOK.VOUCHER];
+    
+    voucherArray.forEach(voucher => {
+      vouchers.push({
+        GUID: normalize(voucher.GUID),
+        VOUCHERNUMBER: normalize(voucher.VOUCHERNUMBER),
+        VOUCHERTYPENAME: normalize(voucher.VOUCHERTYPENAME),
+        DATE: normalize(voucher.DATE),
+        PARTYLEDGERNAME: normalize(voucher.PARTYLEDGERNAME),
+        NARRATION: normalize(voucher.NARRATION),
+        AMOUNT: parseFloat(normalize(voucher.AMOUNT) || 0),
+        ISINVOICE: false,
+        ISACCOUNTING: true,
+        ISINVENTORY: false,
+        entries: [],
+        inventoryEntries: []
+      });
+    });
+    
+    console.log(`✅ Extracted ${vouchers.length} vouchers from DAYBOOK`);
+    return vouchers;
+  }
+  
+  // Process TALLYMESSAGE structure (legacy)
+  if (dataSource.TALLYMESSAGE) {
+    console.log('📊 Processing TALLYMESSAGE vouchers...');
+    const dataArray = Array.isArray(dataSource.TALLYMESSAGE) ? dataSource.TALLYMESSAGE : [dataSource.TALLYMESSAGE];
     
     dataArray.forEach(data => {
       if (data.TALLYMESSAGE) {
