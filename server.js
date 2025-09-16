@@ -195,7 +195,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>Trial Balance</ID>
+    <ID>List of Accounts</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -297,7 +297,10 @@ async function fetchTallyData(companyId, divisionId, reportType = 'DayBook', fro
         'Content-Type': 'application/xml',
         'ngrok-skip-browser-warning': 'true'
       },
-      timeout: 30000
+      // Increase limits/timeouts to support large master data payloads
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      timeout: 120000
     });
     
     console.log(`✅ Received response (${response.data.length} chars)`);
