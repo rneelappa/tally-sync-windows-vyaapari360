@@ -167,8 +167,8 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   let requestXml;
 
   if (reportType === 'Vouchers' || reportType === 'DayBook') {
-    // Use built-in Day Book - it works and returns vouchers (131 found in test)
-    // Client-side date filtering will be applied in extractVouchers function
+    // Use built-in Day Book with date range to get more vouchers
+    // The Day Book with date range should return more vouchers than without
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
@@ -182,6 +182,8 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        <SVFROMDATE>${fromDate || '20200101'}</SVFROMDATE>
+        <SVTODATE>${toDate || '20251231'}</SVTODATE>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -302,6 +304,69 @@ async function fetchTallyData(companyId, divisionId, reportType = 'DayBook', fro
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching from Tally:', error.message);
+    throw error;
+  }
+}
+
+// Fetch all vouchers by making multiple requests to overcome pagination limits
+async function fetchAllVouchers(companyId, divisionId, fromDate = '', toDate = '') {
+  try {
+    console.log(`🔄 Fetching ALL vouchers from Tally for ${companyId}/${divisionId}...`);
+    
+    // Get Tally URL from Supabase
+    const tallyUrl = await getTallyUrl(companyId, divisionId);
+    
+    // If no date range specified, use a broad range to get all vouchers
+    const startDate = fromDate || '20200101';
+    const endDate = toDate || '20251231';
+    
+    console.log(`📅 Fetching vouchers from ${startDate} to ${endDate}`);
+    
+    // Make multiple requests with different date ranges to get all vouchers
+    const allVouchers = [];
+    const yearRanges = [
+      { from: '20200101', to: '20201231' },
+      { from: '20210101', to: '20211231' },
+      { from: '20220101', to: '20221231' },
+      { from: '20230101', to: '20231231' },
+      { from: '20240101', to: '20241231' },
+      { from: '20250101', to: '20251231' }
+    ];
+    
+    for (const range of yearRanges) {
+      try {
+        console.log(`🔄 Fetching vouchers for ${range.from} to ${range.to}...`);
+        
+        const requestXml = createTallyRequest('DayBook', range.from, range.to);
+        
+        const response = await axios.post(tallyUrl, requestXml, {
+          headers: {
+            'Content-Type': 'application/xml',
+            'ngrok-skip-browser-warning': 'true'
+          },
+          timeout: 30000
+        });
+        
+        const parsedData = await parseTallyResponse(response.data);
+        const vouchers = extractVouchers(parsedData);
+        
+        console.log(`✅ Found ${vouchers.length} vouchers for ${range.from} to ${range.to}`);
+        allVouchers.push(...vouchers);
+        
+        // Add a small delay between requests to avoid overwhelming Tally
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        console.warn(`⚠️ Error fetching vouchers for ${range.from} to ${range.to}:`, error.message);
+        // Continue with next range even if one fails
+      }
+    }
+    
+    console.log(`✅ Total vouchers fetched: ${allVouchers.length}`);
+    return allVouchers;
+    
+  } catch (error) {
+    console.error(`❌ Error fetching all vouchers:`, error.message);
     throw error;
   }
 }
@@ -1065,19 +1130,10 @@ app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
   try {
     const { companyId, divisionId } = req.params;
     
-    console.log(`🔄 Syncing ALL vouchers for ${companyId}/${divisionId} (no date filtering)`);
+    console.log(`🔄 Syncing ALL vouchers for ${companyId}/${divisionId} (using multiple requests to get all vouchers)`);
     
-    // Fetch data from Tally - try Vouchers Collection first for detailed data
-    let xmlData;
-    try {
-      console.log('🔄 Trying Vouchers Collection for detailed data...');
-      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', '', '');
-    } catch (error) {
-      console.log('⚠️ Vouchers Collection failed, falling back to DayBook...');
-      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
-    }
-    const parsedData = await parseTallyResponse(xmlData);
-    const vouchers = extractVouchers(parsedData, fromDate, toDate);
+    // Use fetchAllVouchers to get all vouchers by making multiple requests
+    const vouchers = await fetchAllVouchers(companyId, divisionId);
     
     console.log(`📋 Found ${vouchers.length} vouchers`);
     
