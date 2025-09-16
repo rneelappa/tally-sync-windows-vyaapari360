@@ -1563,6 +1563,99 @@ app.post('/api/v1/tallysync/sync/:companyId/:divisionId', async (req, res) => {
   }
 });
 
+// TallySync: Debug endpoint to test XML request generation
+app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    
+    console.log(`🔧 Debug: Testing Tally connection for ${companyId}/${divisionId}`);
+    
+    // Get Tally URL
+    let tallyUrl;
+    try {
+      tallyUrl = await getTallyUrl(companyId, divisionId);
+      console.log(`✅ Debug: Found Tally URL: ${tallyUrl}`);
+    } catch (error) {
+      console.error(`❌ Debug: Tally URL error: ${error.message}`);
+      return res.json({
+        success: false,
+        debug: {
+          step: 'getTallyUrl',
+          error: error.message,
+          companyId,
+          divisionId
+        }
+      });
+    }
+    
+    // Generate XML request
+    const xmlRequest = createTallyRequest('DayBook', '20250901', '20250930');
+    console.log(`📤 Debug: Generated XML request (length: ${xmlRequest.length})`);
+    
+    // Test the actual HTTP request to Tally
+    try {
+      console.log(`🔄 Debug: Sending request to ${tallyUrl}`);
+      
+      const response = await axios.post(tallyUrl, xmlRequest, {
+        headers: {
+          'Content-Type': 'application/xml',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        timeout: 10000
+      });
+      
+      console.log(`✅ Debug: Received response (${response.data.length} chars)`);
+      console.log(`📋 Debug: Response preview: ${response.data.substring(0, 500)}...`);
+      
+      // Parse the response
+      const parsedData = await parseTallyResponse(response.data);
+      console.log(`📊 Debug: Parsed data keys: ${Object.keys(parsedData)}`);
+      
+      // Extract vouchers
+      const vouchers = extractVouchers(parsedData);
+      console.log(`📋 Debug: Extracted ${vouchers.length} vouchers`);
+      
+      res.json({
+        success: true,
+        debug: {
+          tallyUrl,
+          xmlRequestLength: xmlRequest.length,
+          responseLength: response.data.length,
+          responsePreview: response.data.substring(0, 500),
+          parsedDataKeys: Object.keys(parsedData),
+          vouchersExtracted: vouchers.length,
+          sampleVouchers: vouchers.slice(0, 3),
+          service: 'TallySync - Debug'
+        }
+      });
+      
+    } catch (error) {
+      console.error(`❌ Debug: HTTP request error: ${error.message}`);
+      res.json({
+        success: false,
+        debug: {
+          step: 'httpRequest',
+          error: error.message,
+          tallyUrl,
+          xmlRequestPreview: xmlRequest.substring(0, 500),
+          service: 'TallySync - Debug'
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Debug endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      debug: {
+        step: 'general',
+        error: error.message,
+        service: 'TallySync - Debug'
+      }
+    });
+  }
+});
+
 // TallySync: Clear database (for testing)
 app.post('/api/v1/tallysync/clear', (req, res) => {
   const voucherCount = xmlStorage.size;
