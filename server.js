@@ -164,14 +164,14 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   </BODY>
 </ENVELOPE>`;
   } else if (reportType === 'DayBook') {
-    // Use built-in Day Book (or our wrapper `VyaapariDayBook` if loaded)
+    // Use built-in Day Book
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>VyaapariDayBook</ID>
+    <ID>Day Book</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -1661,14 +1661,14 @@ app.post('/api/v1/tallysync/sync/:companyId/:divisionId', async (req, res) => {
     
     console.log(`🔄 TallySync: Syncing ALL vouchers for ${companyId}/${divisionId} (no date filtering)`);
     
-    // Fetch data from Tally - try Vouchers Collection first for detailed data
+    // Fetch data from Tally - try Day Book first for robustness
     let xmlData;
     try {
-      console.log('🔄 TallySync: Trying Vouchers Collection for detailed data...');
-      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', '', '');
-    } catch (error) {
-      console.log('⚠️ TallySync: Vouchers Collection failed, falling back to DayBook...');
+      console.log('🔄 TallySync: Trying Day Book first...');
       xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
+    } catch (error) {
+      console.log('⚠️ TallySync: Day Book failed, falling back to Vouchers collection...');
+      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', '', '');
     }
     const parsedData = await parseTallyResponse(xmlData);
     const vouchers = extractVouchers(parsedData);
@@ -1751,7 +1751,7 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
     }
     
     // Generate XML request (built-in Day Book) for a single day to simplify testing
-    const xmlRequest = createTallyRequest('Day Book', '20250610', '20250610');
+    const xmlRequest = createTallyRequest('DayBook', '20250610', '20250610');
     console.log(`📤 Debug: Generated XML request (length: ${xmlRequest.length})`);
     
     // Test the actual HTTP request to Tally
