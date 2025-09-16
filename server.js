@@ -496,18 +496,17 @@ app.put('/api/v1/voucher/:companyId/:divisionId/:voucherId', (req, res) => {
 app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
   try {
     const { companyId, divisionId } = req.params;
-    const { fromDate = '20250401', toDate = '20250930' } = req.body;
     
-    console.log(`🔄 Syncing data for ${companyId}/${divisionId} from ${fromDate} to ${toDate}`);
+    console.log(`🔄 Syncing ALL vouchers for ${companyId}/${divisionId} (no date filtering)`);
     
     // Fetch data from Tally - try Vouchers Collection first for detailed data
     let xmlData;
     try {
       console.log('🔄 Trying Vouchers Collection for detailed data...');
-      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', fromDate, toDate);
+      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', '', '');
     } catch (error) {
       console.log('⚠️ Vouchers Collection failed, falling back to DayBook...');
-      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', fromDate, toDate);
+      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
     }
     const parsedData = await parseTallyResponse(xmlData);
     const vouchers = extractVouchers(parsedData);
@@ -548,7 +547,7 @@ app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
         errorCount,
         companyId,
         divisionId,
-        dateRange: { fromDate, toDate }
+        syncType: 'ALL_VOUCHERS'
       }
     });
     
