@@ -172,22 +172,22 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
   </BODY>
 </ENVELOPE>`;
   } else if (reportType === 'DayBook') {
-    // Use built-in Day Book - match exact format of working curl
+    // Use custom TDL report for proper date filtering (same as Vouchers)
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>Day Book</ID>
+    <ID>VyaapariDateFilteredReport</ID>
   </HEADER>
   <BODY>
     <DESC>
       <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVFROMDATE>${fromDate}</SVFROMDATE>
         <SVTODATE>${toDate}</SVTODATE>
         ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
-        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       </STATICVARIABLES>
     </DESC>
   </BODY>
