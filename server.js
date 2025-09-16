@@ -445,7 +445,48 @@ function extractMasterData(parsedData, dataType) {
   } else if (parsedData.TALLYMESSAGE) {
     dataSource = parsedData.TALLYMESSAGE;
     console.log(`📋 Found ${dataType} in TALLYMESSAGE structure`);
-  } else if (parsedData.ENVELOPE && Object.keys(parsedData.ENVELOPE).length > 0) {
+  }
+  
+  // Handle Summary report formats (Group Summary, Stock Summary) - CHECK THIS FIRST
+  if (parsedData.ENVELOPE?.DSPACCNAME) {
+    console.log(`📋 Found ${dataType} in Summary report format (DSPACCNAME)`);
+    console.log(`🔍 Debug: DSPACCNAME structure:`, Object.keys(parsedData.ENVELOPE.DSPACCNAME));
+    const nameArray = Array.isArray(parsedData.ENVELOPE.DSPACCNAME) ? 
+      parsedData.ENVELOPE.DSPACCNAME : [parsedData.ENVELOPE.DSPACCNAME];
+    console.log(`📊 Debug: Processing ${nameArray.length} ${dataType} items...`);
+    
+    nameArray.forEach((nameItem, index) => {
+      if (nameItem.DSPDISPNAME) {
+        const item = {
+          GUID: `summary-${dataType.toLowerCase()}-${index}`, // Generate GUID for summary items
+          NAME: normalize(nameItem.DSPDISPNAME),
+          PARENT: '',
+          TYPE: dataType
+        };
+        
+        // Add additional fields based on type
+        if (dataType === 'GROUP') {
+          // Group summary data
+          items.push(item);
+        } else if (dataType === 'STOCKITEM') {
+          // Stock summary data - add stock info if available
+          const stockInfo = parsedData.ENVELOPE.DSPSTKINFO?.[index];
+          if (stockInfo?.DSPSTKCL) {
+            item.QUANTITY = normalize(stockInfo.DSPSTKCL.DSPCLQTY) || '';
+            item.RATE = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLRATE) || 0);
+            item.AMOUNT = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLAMTA) || 0);
+          }
+          items.push(item);
+        }
+      }
+    });
+    
+    console.log(`✅ Extracted ${items.length} ${dataType} items from Summary format`);
+    return items;
+  }
+  
+  // Handle TDL field format (F01, F02, F03...) - CHECK THIS SECOND
+  if (parsedData.ENVELOPE && Object.keys(parsedData.ENVELOPE).length > 0) {
     // Handle TDL field format (F01, F02, F03...)
     console.log(`📋 Found ${dataType} in TDL field format (F01, F02...)`);
     
@@ -518,44 +559,6 @@ function extractMasterData(parsedData, dataType) {
     }
     
     console.log(`⚠️ TDL format detected but no matching parser for ${dataType}`);
-    return items;
-  }
-  
-  // Handle Summary report formats (Group Summary, Stock Summary)
-  if (parsedData.ENVELOPE?.DSPACCNAME) {
-    console.log(`📋 Found ${dataType} in Summary report format (DSPACCNAME)`);
-    console.log(`🔍 Debug: DSPACCNAME structure:`, Object.keys(parsedData.ENVELOPE.DSPACCNAME));
-    const nameArray = Array.isArray(parsedData.ENVELOPE.DSPACCNAME) ? 
-      parsedData.ENVELOPE.DSPACCNAME : [parsedData.ENVELOPE.DSPACCNAME];
-    console.log(`📊 Debug: Processing ${nameArray.length} ${dataType} items...`);
-    
-    nameArray.forEach((nameItem, index) => {
-      if (nameItem.DSPDISPNAME) {
-        const item = {
-          GUID: `summary-${dataType.toLowerCase()}-${index}`, // Generate GUID for summary items
-          NAME: normalize(nameItem.DSPDISPNAME),
-          PARENT: '',
-          TYPE: dataType
-        };
-        
-        // Add additional fields based on type
-        if (dataType === 'GROUP') {
-          // Group summary data
-          items.push(item);
-        } else if (dataType === 'STOCKITEM') {
-          // Stock summary data - add stock info if available
-          const stockInfo = parsedData.ENVELOPE.DSPSTKINFO?.[index];
-          if (stockInfo?.DSPSTKCL) {
-            item.QUANTITY = normalize(stockInfo.DSPSTKCL.DSPCLQTY) || '';
-            item.RATE = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLRATE) || 0);
-            item.AMOUNT = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLAMTA) || 0);
-          }
-          items.push(item);
-        }
-      }
-    });
-    
-    console.log(`✅ Extracted ${items.length} ${dataType} items from Summary format`);
     return items;
   }
   
