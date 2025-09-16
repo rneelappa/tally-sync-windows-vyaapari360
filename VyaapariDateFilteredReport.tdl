@@ -1,57 +1,82 @@
 [Report: VyaapariDateFilteredReport]
   Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT
-  Forms: VyaapariForm
+  Forms: VyaForm
 
-[Form: VyaapariForm]
-  Parts: VyaapariPart
+[Form: VyaForm]
+  Parts: VyaPart
+  XMLTAG: ENVELOPE
 
-[Part: VyaapariPart]
-  Lines: VyaapariLine
-  Repeat: VyaapariLine : VyaapariVoucherCollection
-  Scrolled: Vertical
+[Part: VyaPart]
+  Lines: VyaLine
+  Repeat: VyaLine : VyaapariVoucherCollection
+  SCROLLED: Vertical
 
-[Line: VyaapariLine]
-  Fields: FldGuid, FldDate, FldVoucherType, FldVoucherNumber, FldReference, FldReferenceDate, FldNarration, FldPartyName, FldPlaceOfSupply, FldIsInvoice, FldIsAccounting, FldIsInventory, FldAmount
+[Line: VyaLine]
+  Fields: FGuid, FDate, FType, FNumber, FRef, FRefDate, FNarr, FParty, FPos, FIsInv, FIsAcc, FIsInvt, FAmt
+  XMLTAG: VOUCHER
 
-[Field: FldGuid]
+[Field: FGuid]
+  XMLTAG: GUID
   Set: $Guid
 
-[Field: FldDate]
+[Field: FDate]
+  XMLTAG: DATE
   Set: $Date
 
-[Field: FldVoucherType]
+[Field: FType]
+  XMLTAG: VOUCHERTYPENAME
   Set: $VoucherTypeName
 
-[Field: FldVoucherNumber]
+[Field: FNumber]
+  XMLTAG: VOUCHERNUMBER
   Set: $VoucherNumber
 
-[Field: FldReference]
+[Field: FRef]
+  XMLTAG: REFERENCE
   Set: $Reference
 
-[Field: FldReferenceDate]
+[Field: FRefDate]
+  XMLTAG: REFERENCEDATE
   Set: $ReferenceDate
 
-[Field: FldNarration]
+[Field: FNarr]
+  XMLTAG: NARRATION
   Set: $$StringFindAndReplace:$Narration:'"':'""'
 
-[Field: FldPartyName]
+[Field: FParty]
+  XMLTAG: PARTYLEDGERNAME
   Set: $$StringFindAndReplace:$PartyLedgerName:'"':'""'
 
-[Field: FldPlaceOfSupply]
+[Field: FPos]
+  XMLTAG: PLACEOFSUPPLY
   Set: $$StringFindAndReplace:$PlaceOfSupply:'"':'""'
 
-[Field: FldIsInvoice]
+[Field: FIsInv]
+  XMLTAG: ISINVOICE
   Set: if $$IsSales:$VoucherTypeName or $$IsPurchase:$VoucherTypeName then 1 else 0
 
-[Field: FldIsAccounting]
+[Field: FIsAcc]
+  XMLTAG: ISACCOUNTING
   Set: if $$IsAccountingVch:$VoucherTypeName then 1 else 0
 
-[Field: FldIsInventory]
+[Field: FIsInvt]
+  XMLTAG: ISINVENTORY
   Set: if $$IsInventoryVch:$VoucherTypeName then 1 else 0
 
-[Field: FldAmount]
+[Field: FAmt]
+  XMLTAG: AMOUNT
   Set: $Amount
 
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
-  Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount
+  Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount, IsCancelled, IsOptional
+  Filter: VyaNotCancelled, VyaDateBetween
+
+[System: Formulae]
+  VyaNotCancelled: NOT $IsCancelled AND NOT $IsOptional
+  VyaDateBetween:  $Date >= ##SVFromDate AND $Date <= ##SVToDate
+
+; Lightweight wrapper over Day Book that honors SVFromDate/SVToDate and company
+[Report: VyaapariDayBook]
+  Use: Day Book
+  Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT

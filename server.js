@@ -142,7 +142,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
 
   let requestXml;
 
-  if (reportType === 'Vouchers' || reportType === 'DayBook') {
+  if (reportType === 'Vouchers') {
     // Use custom date-filtered TDL report (requires VyaapariDateFilteredReport.tdl to be loaded in Tally)
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
@@ -158,6 +158,28 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVFROMDATE>${fromDate}</SVFROMDATE>
         <SVTODATE>${toDate}</SVTODATE>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+      </STATICVARIABLES>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+  } else if (reportType === 'DayBook') {
+    // Use built-in Day Book (or our wrapper `VyaapariDayBook` if loaded)
+    requestXml = `<?xml version="1.0" encoding="utf-8"?>
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>VyaapariDayBook</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVFROMDATE>${fromDate}</SVFROMDATE>
+        <SVTODATE>${toDate}</SVTODATE>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -175,6 +197,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -192,6 +215,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -209,6 +233,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -226,6 +251,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -245,6 +271,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         ${fromDate && toDate ? `<SVFROMDATE>${fromDate}</SVFROMDATE><SVTODATE>${toDate}</SVTODATE>` : ''}
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -1723,8 +1750,8 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
       });
     }
     
-    // Generate XML request
-    const xmlRequest = createTallyRequest('DayBook', '20250901', '20250930');
+    // Generate XML request (built-in Day Book) for a single day to simplify testing
+    const xmlRequest = createTallyRequest('Day Book', '20250610', '20250610');
     console.log(`📤 Debug: Generated XML request (length: ${xmlRequest.length})`);
     
     // Test the actual HTTP request to Tally
@@ -1755,6 +1782,7 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
         debug: {
           tallyUrl,
           xmlRequestLength: xmlRequest.length,
+          xmlRequestPreview: xmlRequest.substring(0, 500),
           responseLength: response.data.length,
           responsePreview: response.data.substring(0, 500),
           parsedDataKeys: Object.keys(parsedData),
