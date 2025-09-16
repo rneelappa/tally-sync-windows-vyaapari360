@@ -337,6 +337,13 @@ async function fetchAllVouchers(companyId, divisionId, fromDate = '', toDate = '
     console.log(`📊 Response length: ${response.data.length} characters`);
     console.log(`📋 Response preview: ${response.data.substring(0, 500)}...`);
     
+    // Store raw response for debugging
+    global.lastTallyResponse = {
+      length: response.data.length,
+      preview: response.data.substring(0, 1000),
+      timestamp: new Date().toISOString()
+    };
+    
     const parsedData = await parseTallyResponse(response.data);
     console.log(`🔍 Parsed data structure:`, Object.keys(parsedData));
     if (parsedData.ENVELOPE) {
