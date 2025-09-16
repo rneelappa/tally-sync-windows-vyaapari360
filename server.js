@@ -54,6 +54,13 @@ function normalize(value) {
   return value.replace(/[\r\n\t]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+// Helper function to extract field values from custom TDL response
+function extractFieldValue(text, fieldName) {
+  const regex = new RegExp(`<${fieldName}>(.*?)</${fieldName}>`, 'i');
+  const match = text.match(regex);
+  return match ? normalize(match[1]) : '';
+}
+
 // In-memory XML storage (for Railway - consider Redis for production)
 const xmlStorage = new Map();
 
@@ -383,6 +390,72 @@ function extractVouchers(parsedData) {
   if (!dataSource) {
     console.warn('⚠️ No recognizable data structure found in response');
     console.log('Available keys:', Object.keys(parsedData));
+    return vouchers;
+  }
+  
+  // Process custom TDL format (VyaapariDateFilteredReport)
+  if (dataSource.FLDGUID || dataSource.ENVELOPE) {
+    console.log('📊 Processing custom TDL format vouchers...');
+    
+    // Handle direct field format from our custom TDL
+    if (dataSource.FLDGUID) {
+      vouchers.push({
+        GUID: normalize(dataSource.FLDGUID),
+        VOUCHERNUMBER: normalize(dataSource.FLDVOUCHERNUMBER),
+        VOUCHERTYPENAME: normalize(dataSource.FLDVOUCHERTYPE),
+        DATE: normalize(dataSource.FLDDATE),
+        PARTYLEDGERNAME: normalize(dataSource.FLDPARTYNAME),
+        NARRATION: normalize(dataSource.FLDNARRATION),
+        AMOUNT: parseFloat(normalize(dataSource.FLDAMOUNT) || 0),
+        ISINVOICE: normalize(dataSource.FLDISINVOICE) === '1',
+        ISACCOUNTING: normalize(dataSource.FLDISACCOUNTING) === '1',
+        ISINVENTORY: normalize(dataSource.FLDISINVENTORY) === '1',
+        entries: [],
+        inventoryEntries: []
+      });
+    }
+    
+    // Handle ENVELOPE structure with custom fields
+    if (dataSource.ENVELOPE && typeof dataSource.ENVELOPE === 'string') {
+      // Parse the custom TDL response format
+      const responseText = dataSource.ENVELOPE;
+      const voucherMatches = responseText.match(/<FLDGUID>(.*?)<\/FLDGUID>/g);
+      
+      if (voucherMatches) {
+        console.log(`📋 Found ${voucherMatches.length} voucher patterns in response`);
+        
+        // Extract each voucher from the text
+        const guidMatches = responseText.match(/<FLDGUID>(.*?)<\/FLDGUID>/g);
+        if (guidMatches) {
+          guidMatches.forEach((match, index) => {
+            const startPos = responseText.indexOf(match);
+            const nextGuidPos = responseText.indexOf('<FLDGUID>', startPos + 1);
+            const voucherText = nextGuidPos > -1 ? 
+              responseText.substring(startPos, nextGuidPos) : 
+              responseText.substring(startPos);
+            
+            const voucher = {
+              GUID: extractFieldValue(voucherText, 'FLDGUID'),
+              VOUCHERNUMBER: extractFieldValue(voucherText, 'FLDVOUCHERNUMBER'),
+              VOUCHERTYPENAME: extractFieldValue(voucherText, 'FLDVOUCHERTYPE'),
+              DATE: extractFieldValue(voucherText, 'FLDDATE'),
+              PARTYLEDGERNAME: extractFieldValue(voucherText, 'FLDPARTYNAME'),
+              NARRATION: extractFieldValue(voucherText, 'FLDNARRATION'),
+              AMOUNT: parseFloat(extractFieldValue(voucherText, 'FLDAMOUNT') || 0),
+              ISINVOICE: extractFieldValue(voucherText, 'FLDISINVOICE') === '1',
+              ISACCOUNTING: extractFieldValue(voucherText, 'FLDISACCOUNTING') === '1',
+              ISINVENTORY: extractFieldValue(voucherText, 'FLDISINVENTORY') === '1',
+              entries: [],
+              inventoryEntries: []
+            };
+            
+            vouchers.push(voucher);
+          });
+        }
+      }
+    }
+    
+    console.log(`✅ Extracted ${vouchers.length} vouchers from custom TDL format`);
     return vouchers;
   }
   
