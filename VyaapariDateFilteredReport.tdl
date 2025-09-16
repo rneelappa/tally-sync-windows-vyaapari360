@@ -1,8 +1,3 @@
-[System: Formulae]
-  VyaNotCancelled: NOT $IsCancelled AND NOT $IsOptional
-  VyaDateBetween:  $$IsGTE:$Date:##SVFROMDATE AND $$IsLTE:$Date:##SVTODATE
-  VyaFilter: NOT $IsCancelled AND NOT $IsOptional AND $$IsGTE:$Date:##SVFROMDATE AND $$IsLTE:$Date:##SVTODATE
-
 [Report: VyaapariDateFilteredReport]
   Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT
   Forms: VyaForm
@@ -75,7 +70,7 @@
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
   Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount, IsCancelled, IsOptional
-  Filter: VyaFilter
+  Filter: NOT $IsCancelled AND NOT $IsOptional
 
 ; Lightweight wrapper over Day Book that honors SVFromDate/SVToDate and company
 [Report: VyaapariDayBook]
