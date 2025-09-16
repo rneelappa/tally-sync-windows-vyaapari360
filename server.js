@@ -379,6 +379,12 @@ function extractVouchers(parsedData) {
   } else if (parsedData.RESPONSE?.BODY?.DATA) {
     dataSource = parsedData.RESPONSE.BODY.DATA;
     console.log('📋 Found data in RESPONSE.BODY.DATA structure');
+  } else if (parsedData.ENVELOPE && (parsedData.ENVELOPE.FLDGUID || typeof parsedData.ENVELOPE === 'string')) {
+    dataSource = { CUSTOMTDL: parsedData.ENVELOPE };
+    console.log('📋 Found data in custom TDL ENVELOPE structure');
+  } else if (parsedData.FLDGUID) {
+    dataSource = { CUSTOMTDL: parsedData };
+    console.log('📋 Found data in direct custom TDL structure');
   } else if (parsedData.DAYBOOK) {
     dataSource = { DAYBOOK: parsedData.DAYBOOK };
     console.log('📋 Found data in DAYBOOK structure');
@@ -394,6 +400,65 @@ function extractVouchers(parsedData) {
   }
   
   // Process custom TDL format (VyaapariDateFilteredReport)
+  if (dataSource.CUSTOMTDL) {
+    console.log('📊 Processing custom TDL format vouchers...');
+    const tdlData = dataSource.CUSTOMTDL;
+    
+    // Handle direct field format
+    if (tdlData.FLDGUID) {
+      vouchers.push({
+        GUID: normalize(tdlData.FLDGUID),
+        VOUCHERNUMBER: normalize(tdlData.FLDVOUCHERNUMBER),
+        VOUCHERTYPENAME: normalize(tdlData.FLDVOUCHERTYPE),
+        DATE: normalize(tdlData.FLDDATE),
+        PARTYLEDGERNAME: normalize(tdlData.FLDPARTYNAME),
+        NARRATION: normalize(tdlData.FLDNARRATION),
+        AMOUNT: parseFloat(normalize(tdlData.FLDAMOUNT) || 0),
+        ISINVOICE: normalize(tdlData.FLDISINVOICE) === '1',
+        ISACCOUNTING: normalize(tdlData.FLDISACCOUNTING) === '1',
+        ISINVENTORY: normalize(tdlData.FLDISINVENTORY) === '1',
+        entries: [],
+        inventoryEntries: []
+      });
+    }
+    
+    // Handle string format response
+    if (typeof tdlData === 'string' && tdlData.includes('<FLDGUID>')) {
+      console.log('📋 Parsing string format TDL response...');
+      
+      // Split by FLDGUID to get individual vouchers
+      const voucherSections = tdlData.split('<FLDGUID>').slice(1); // Remove first empty element
+      
+      voucherSections.forEach(section => {
+        const voucherText = '<FLDGUID>' + section;
+        
+        const voucher = {
+          GUID: extractFieldValue(voucherText, 'FLDGUID'),
+          VOUCHERNUMBER: extractFieldValue(voucherText, 'FLDVOUCHERNUMBER'),
+          VOUCHERTYPENAME: extractFieldValue(voucherText, 'FLDVOUCHERTYPE'),
+          DATE: extractFieldValue(voucherText, 'FLDDATE'),
+          PARTYLEDGERNAME: extractFieldValue(voucherText, 'FLDPARTYNAME'),
+          NARRATION: extractFieldValue(voucherText, 'FLDNARRATION'),
+          AMOUNT: parseFloat(extractFieldValue(voucherText, 'FLDAMOUNT') || 0),
+          ISINVOICE: extractFieldValue(voucherText, 'FLDISINVOICE') === '1',
+          ISACCOUNTING: extractFieldValue(voucherText, 'FLDISACCOUNTING') === '1',
+          ISINVENTORY: extractFieldValue(voucherText, 'FLDISINVENTORY') === '1',
+          entries: [],
+          inventoryEntries: []
+        };
+        
+        // Only add if we have a valid GUID
+        if (voucher.GUID) {
+          vouchers.push(voucher);
+        }
+      });
+    }
+    
+    console.log(`✅ Extracted ${vouchers.length} vouchers from custom TDL format`);
+    return vouchers;
+  }
+  
+  // Process custom TDL format (VyaapariDateFilteredReport) - Legacy
   if (dataSource.FLDGUID || dataSource.ENVELOPE) {
     console.log('📊 Processing custom TDL format vouchers...');
     
