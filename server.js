@@ -496,7 +496,7 @@ app.put('/api/v1/voucher/:companyId/:divisionId/:voucherId', (req, res) => {
 app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
   try {
     const { companyId, divisionId } = req.params;
-    const { fromDate = '20250901', toDate = '20250930' } = req.body;
+    const { fromDate = '20250401', toDate = '20250930' } = req.body;
     
     console.log(`🔄 Syncing data for ${companyId}/${divisionId} from ${fromDate} to ${toDate}`);
     
