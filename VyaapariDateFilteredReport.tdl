@@ -19,6 +19,14 @@
   Fields: FGuid, FDate, FType, FNumber, FRef, FRefDate, FNarr, FParty, FPos, FIsInv, FIsAcc, FIsInvt, FAmt
   XMLTAG: VOUCHER
 
+[Line: VyaCountLine]
+  Fields: FCount
+  XMLTAG: COUNT
+
+[Field: FCount]
+  XMLTAG: TOTAL_VOUCHERS
+  Set: $$NumItems:VyaapariVoucherCollection
+
 [Field: FGuid]
   XMLTAG: GUID
   Set: $Guid
@@ -73,5 +81,7 @@
 
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
   Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount, IsCancelled, IsOptional
   Filters: VyaNotCancelled, VyaDateBetween

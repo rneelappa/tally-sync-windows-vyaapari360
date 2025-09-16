@@ -1,0 +1,31 @@
+[Report: SimpleTest]
+  Forms: SimpleForm
+
+[Form: SimpleForm]
+  Parts: SimplePart
+  XMLTAG: ENVELOPE
+
+[Part: SimplePart]
+  Lines: SimpleLine
+  Repeat: SimpleLine : SimpleCollection
+  SCROLLED: Vertical
+
+[Line: SimpleLine]
+  Fields: FGuid, FDate, FType
+  XMLTAG: VOUCHER
+
+[Field: FGuid]
+  XMLTAG: GUID
+  Set: $Guid
+
+[Field: FDate]
+  XMLTAG: DATE
+  Set: $Date
+
+[Field: FType]
+  XMLTAG: VOUCHERTYPENAME
+  Set: $VoucherTypeName
+
+[Collection: SimpleCollection]
+  Type: Voucher
+  Fetch: Guid, Date, VoucherTypeName
