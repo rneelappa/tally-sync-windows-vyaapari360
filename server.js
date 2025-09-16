@@ -2061,6 +2061,270 @@ app.post('/api/v1/tallysync/clear', (req, res) => {
 });
 
 // ========================================
+// BULK SYNC APIs (for Tally Database Loader integration)
+// ========================================
+
+// Bulk sync endpoint for batch data operations
+app.post('/api/v1/bulk-sync/:companyId/:divisionId', async (req, res) => {
+  console.log(`🔄 Bulk sync request for ${req.params.companyId}/${req.params.divisionId}`);
+  
+  try {
+    const { table, data, sync_type, batch_info, metadata } = req.body;
+    
+    if (!table || !data || !Array.isArray(data)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request: table and data array are required'
+      });
+    }
+    
+    console.log(`📊 Processing ${data.length} records for table: ${table}`);
+    console.log(`🔧 Sync type: ${sync_type || 'full'}`);
+    
+    // Map table names to Supabase table names
+    const tableMapping = {
+      'groups': 'groups',
+      'ledgers': 'ledgers',
+      'stock_items': 'stock_items',
+      'voucher_types': 'voucher_types',
+      'units': 'units',
+      'godowns': 'godowns',
+      'vouchers': 'vouchers',
+      'accounting_entries': 'accounting_entries',
+      'inventory_entries': 'inventory_entries'
+    };
+    
+    const supabaseTable = tableMapping[table];
+    if (!supabaseTable) {
+      return res.status(400).json({
+        success: false,
+        error: `Unknown table: ${table}`
+      });
+    }
+    
+    // Process data in batches for large datasets
+    const batchSize = 100; // Supabase batch limit
+    const results = [];
+    let totalProcessed = 0;
+    let totalErrors = 0;
+    
+    for (let i = 0; i < data.length; i += batchSize) {
+      const batch = data.slice(i, i + batchSize);
+      
+      try {
+        // For full sync, use upsert. For incremental, use insert/update logic
+        const { data: result, error } = await supabase
+          .from(supabaseTable)
+          .upsert(batch, { 
+            onConflict: 'guid',
+            ignoreDuplicates: false 
+          });
+        
+        if (error) {
+          console.error(`❌ Batch ${Math.floor(i/batchSize) + 1} error:`, error);
+          totalErrors += batch.length;
+        } else {
+          totalProcessed += batch.length;
+          console.log(`✅ Batch ${Math.floor(i/batchSize) + 1}: ${batch.length} records processed`);
+        }
+        
+        results.push({
+          batch: Math.floor(i/batchSize) + 1,
+          records: batch.length,
+          success: !error,
+          error: error?.message
+        });
+        
+      } catch (batchError) {
+        console.error(`❌ Batch processing error:`, batchError);
+        totalErrors += batch.length;
+        results.push({
+          batch: Math.floor(i/batchSize) + 1,
+          records: batch.length,
+          success: false,
+          error: batchError.message
+        });
+      }
+    }
+    
+    // Update sync metadata
+    const syncMetadata = {
+      company_id: req.params.companyId,
+      division_id: req.params.divisionId,
+      table_name: table,
+      last_sync: new Date().toISOString(),
+      sync_type: sync_type || 'full',
+      records_processed: totalProcessed,
+      records_failed: totalErrors,
+      metadata: metadata || {}
+    };
+    
+    // Store sync metadata
+    await supabase
+      .from('sync_metadata')
+      .upsert(syncMetadata, {
+        onConflict: 'company_id,division_id,table_name'
+      });
+    
+    console.log(`✅ Bulk sync completed: ${totalProcessed} processed, ${totalErrors} errors`);
+    
+    res.json({
+      success: true,
+      message: `Bulk sync completed for ${table}`,
+      data: {
+        table: table,
+        total_records: data.length,
+        processed: totalProcessed,
+        failed: totalErrors,
+        batches: results.length,
+        sync_type: sync_type || 'full',
+        company_id: req.params.companyId,
+        division_id: req.params.divisionId,
+        timestamp: new Date().toISOString()
+      },
+      batch_results: results
+    });
+    
+  } catch (error) {
+    console.error('❌ Bulk sync error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during bulk sync',
+      details: error.message
+    });
+  }
+});
+
+// Metadata endpoint for sync tracking
+app.get('/api/v1/metadata/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    
+    console.log(`📋 Fetching sync metadata for ${companyId}/${divisionId}`);
+    
+    // Get sync metadata from Supabase
+    const { data: metadata, error } = await supabase
+      .from('sync_metadata')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('division_id', divisionId);
+    
+    if (error) {
+      console.error('❌ Error fetching metadata:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch sync metadata',
+        details: error.message
+      });
+    }
+    
+    // Convert to the format expected by Tally sync
+    const response = {
+      company_id: companyId,
+      division_id: divisionId,
+      last_alter_id_master: 0,
+      last_alter_id_transaction: 0,
+      tables: {}
+    };
+    
+    if (metadata && metadata.length > 0) {
+      metadata.forEach(item => {
+        response.tables[item.table_name] = {
+          last_sync: item.last_sync,
+          sync_type: item.sync_type,
+          records_processed: item.records_processed,
+          records_failed: item.records_failed
+        };
+        
+        // Extract AlterIDs if available
+        if (item.metadata && item.metadata.last_alter_id_master) {
+          response.last_alter_id_master = Math.max(response.last_alter_id_master, item.metadata.last_alter_id_master);
+        }
+        if (item.metadata && item.metadata.last_alter_id_transaction) {
+          response.last_alter_id_transaction = Math.max(response.last_alter_id_transaction, item.metadata.last_alter_id_transaction);
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: response
+    });
+    
+  } catch (error) {
+    console.error('❌ Metadata endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
+// Sync status endpoint
+app.get('/api/v1/sync-status/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    
+    // Get recent sync history
+    const { data: syncHistory, error } = await supabase
+      .from('sync_metadata')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('division_id', divisionId)
+      .order('last_sync', { ascending: false })
+      .limit(10);
+    
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch sync status',
+        details: error.message
+      });
+    }
+    
+    // Calculate summary statistics
+    const summary = {
+      total_tables: syncHistory?.length || 0,
+      last_sync: syncHistory?.[0]?.last_sync || null,
+      total_records_processed: syncHistory?.reduce((sum, item) => sum + (item.records_processed || 0), 0) || 0,
+      total_records_failed: syncHistory?.reduce((sum, item) => sum + (item.records_failed || 0), 0) || 0,
+      sync_health: 'healthy'
+    };
+    
+    // Determine sync health
+    if (summary.total_records_failed > summary.total_records_processed * 0.1) {
+      summary.sync_health = 'warning';
+    }
+    if (summary.total_records_failed > summary.total_records_processed * 0.5) {
+      summary.sync_health = 'critical';
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        company_id: companyId,
+        division_id: divisionId,
+        summary,
+        recent_syncs: syncHistory || []
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Sync status error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
+// ========================================
+// END BULK SYNC APIs
+// ========================================
+
+// ========================================
 // END TALLYSYNC APIs
 // ========================================
 
@@ -2078,9 +2342,14 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/v1/health`);
   console.log(`🔄 Sync endpoint: POST http://localhost:${PORT}/api/v1/sync/{companyId}/{divisionId}`);
   console.log(`📋 Vouchers: GET http://localhost:${PORT}/api/v1/vouchers/{companyId}/{divisionId}`);
-  console.log(`🌍 Environment: ${NODE_ENV}`);
+  console.log(`\n🆕 NEW BULK SYNC ENDPOINTS:`);
+  console.log(`📦 Bulk Sync: POST http://localhost:${PORT}/api/v1/bulk-sync/{companyId}/{divisionId}`);
+  console.log(`📋 Metadata: GET http://localhost:${PORT}/api/v1/metadata/{companyId}/{divisionId}`);
+  console.log(`📊 Sync Status: GET http://localhost:${PORT}/api/v1/sync-status/{companyId}/{divisionId}`);
+  console.log(`\n🌍 Environment: ${NODE_ENV}`);
   console.log(`🔗 Tally URLs: Fetched dynamically from Supabase per division`);
   console.log(`✅ Ledger entries parsing: FIXED - Using voucher['LEDGERENTRIES.LIST']`);
+  console.log(`✅ Bulk sync endpoints: READY for Tally Database Loader integration`);
 });
 
 module.exports = app;
