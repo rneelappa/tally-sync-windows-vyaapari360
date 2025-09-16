@@ -333,7 +333,21 @@ async function fetchAllVouchers(companyId, divisionId, fromDate = '', toDate = '
       timeout: 60000 // Increased timeout for large dataset
     });
     
+    console.log(`📊 Response length: ${response.data.length} characters`);
+    console.log(`📋 Response preview: ${response.data.substring(0, 500)}...`);
+    
     const parsedData = await parseTallyResponse(response.data);
+    console.log(`🔍 Parsed data structure:`, Object.keys(parsedData));
+    if (parsedData.ENVELOPE) {
+      console.log(`📦 ENVELOPE structure:`, Object.keys(parsedData.ENVELOPE));
+      if (parsedData.ENVELOPE.BODY) {
+        console.log(`📦 BODY structure:`, Object.keys(parsedData.ENVELOPE.BODY));
+        if (parsedData.ENVELOPE.BODY.DATA) {
+          console.log(`📦 DATA structure:`, Object.keys(parsedData.ENVELOPE.BODY.DATA));
+        }
+      }
+    }
+    
     const vouchers = extractVouchers(parsedData);
     
     console.log(`✅ Full sync complete: fetched ${vouchers.length} vouchers`);
