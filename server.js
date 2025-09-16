@@ -195,7 +195,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Accounts</ID>
+    <ID>Trial Balance</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -475,6 +475,16 @@ function extractMasterData(parsedData, dataType) {
             item.QUANTITY = normalize(stockInfo.DSPSTKCL.DSPCLQTY) || '';
             item.RATE = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLRATE) || 0);
             item.AMOUNT = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLAMTA) || 0);
+          }
+          items.push(item);
+        } else if (dataType === 'LEDGER') {
+          // Ledger summary data - add balance info if available
+          const accInfo = parsedData.ENVELOPE.DSPACCINFO?.[index];
+          if (accInfo?.DSPCLDRAMT?.DSPCLDRAMTA) {
+            item.OPENINGBALANCE = parseFloat(normalize(accInfo.DSPCLDRAMT.DSPCLDRAMTA) || 0);
+          }
+          if (accInfo?.DSPCLCRAMT?.DSPCLCRAMTA) {
+            item.CLOSINGBALANCE = parseFloat(normalize(accInfo.DSPCLCRAMT.DSPCLCRAMTA) || 0);
           }
           items.push(item);
         }
