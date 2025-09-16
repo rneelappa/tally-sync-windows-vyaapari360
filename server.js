@@ -54,6 +54,37 @@ function normalize(value) {
   return value.replace(/[\r\n\t]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+// Helper function to parse Tally date format (DD-MMM-YY) to Date object
+function parseTallyDate(dateStr) {
+  if (!dateStr) return null;
+  
+  try {
+    // Handle DD-MMM-YY format (e.g., "05-Jun-25")
+    const match = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2})$/);
+    if (match) {
+      const day = parseInt(match[1]);
+      const monthStr = match[2];
+      const year = parseInt(match[3]) + 2000; // Convert YY to YYYY
+      
+      const monthMap = {
+        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+      };
+      
+      const month = monthMap[monthStr];
+      if (month !== undefined) {
+        return new Date(year, month, day);
+      }
+    }
+    
+    // Fallback to standard Date parsing
+    return new Date(dateStr);
+  } catch (error) {
+    console.warn(`⚠️ Failed to parse date: ${dateStr}`, error.message);
+    return null;
+  }
+}
+
 // In-memory XML storage (for Railway - consider Redis for production)
 const xmlStorage = new Map();
 
@@ -136,21 +167,20 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   let requestXml;
 
   if (reportType === 'Vouchers' || reportType === 'DayBook') {
-    // Use custom date-filtered TDL report (requires VyaapariDateFilteredReport.tdl to be loaded in Tally)
+    // Use built-in Day Book - it works and returns vouchers (131 found in test)
+    // Client-side date filtering will be applied in extractVouchers function
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>VyaapariDateFilteredReport</ID>
+    <ID>Day Book</ID>
   </HEADER>
   <BODY>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVFROMDATE>${fromDate}</SVFROMDATE>
-        <SVTODATE>${toDate}</SVTODATE>
         <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
@@ -360,7 +390,7 @@ function extractMasterData(parsedData, dataType) {
 }
 
 // Extract vouchers from Tally response
-function extractVouchers(parsedData) {
+function extractVouchers(parsedData, fromDate = '', toDate = '') {
   const vouchers = [];
   console.log('🔍 Extracting vouchers from parsed data...');
   
@@ -560,6 +590,36 @@ function extractVouchers(parsedData) {
         });
       }
     });
+  }
+  
+  // Apply client-side date filtering if dates are provided
+  if (fromDate && toDate) {
+    console.log(`🔍 Applying client-side date filtering: ${fromDate} to ${toDate}`);
+    
+    const filteredVouchers = vouchers.filter(voucher => {
+      if (!voucher.DATE) return false;
+      
+      // Parse Tally date format (DD-MMM-YY) to Date object
+      const voucherDate = parseTallyDate(voucher.DATE);
+      if (!voucherDate) return false;
+      
+      // Parse filter dates (YYYYMMDD format)
+      const fromDateObj = new Date(
+        fromDate.substring(0, 4), 
+        fromDate.substring(4, 6) - 1, 
+        fromDate.substring(6, 8)
+      );
+      const toDateObj = new Date(
+        toDate.substring(0, 4), 
+        toDate.substring(4, 6) - 1, 
+        toDate.substring(6, 8)
+      );
+      
+      return voucherDate >= fromDateObj && voucherDate <= toDateObj;
+    });
+    
+    console.log(`📊 Date filtering: ${vouchers.length} → ${filteredVouchers.length} vouchers`);
+    return filteredVouchers;
   }
   
   return vouchers;
@@ -849,7 +909,7 @@ app.post('/api/v1/sync-comprehensive/:companyId/:divisionId', async (req, res) =
     try {
       const voucherXml = await fetchTallyData(companyId, divisionId, 'Vouchers', fromDate, toDate);
       const parsedVouchers = await parseTallyResponse(voucherXml);
-      const vouchers = extractVouchers(parsedVouchers);
+      const vouchers = extractVouchers(parsedVouchers, fromDate, toDate);
       
       console.log(`📋 Found ${vouchers.length} detailed vouchers`);
       
@@ -1017,7 +1077,7 @@ app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
       xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
     }
     const parsedData = await parseTallyResponse(xmlData);
-    const vouchers = extractVouchers(parsedData);
+    const vouchers = extractVouchers(parsedData, fromDate, toDate);
     
     console.log(`📋 Found ${vouchers.length} vouchers`);
     
@@ -1405,7 +1465,7 @@ app.post('/api/v1/tallysync/sync-comprehensive/:companyId/:divisionId', async (r
     try {
       const voucherXml = await fetchTallyData(companyId, divisionId, 'Vouchers', fromDate, toDate);
       const parsedVouchers = await parseTallyResponse(voucherXml);
-      const vouchers = extractVouchers(parsedVouchers);
+      const vouchers = extractVouchers(parsedVouchers, fromDate, toDate);
       
       console.log(`📋 TallySync: Found ${vouchers.length} detailed vouchers`);
       
@@ -1574,7 +1634,7 @@ app.post('/api/v1/tallysync/sync/:companyId/:divisionId', async (req, res) => {
       xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
     }
     const parsedData = await parseTallyResponse(xmlData);
-    const vouchers = extractVouchers(parsedData);
+    const vouchers = extractVouchers(parsedData, fromDate, toDate);
     
     console.log(`📋 TallySync: Found ${vouchers.length} vouchers`);
     
@@ -1677,7 +1737,7 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
       console.log(`📊 Debug: Parsed data keys: ${Object.keys(parsedData)}`);
       
       // Extract vouchers
-      const vouchers = extractVouchers(parsedData);
+      const vouchers = extractVouchers(parsedData, fromDate, toDate);
       console.log(`📋 Debug: Extracted ${vouchers.length} vouchers`);
       
       res.json({
