@@ -531,3 +531,5 @@ interface InventoryEntry {
 7. **Implement real-time updates** using the update endpoint
 
 Your Tally XML API is ready for full integration with Lovable.dev! 🎉
+
+

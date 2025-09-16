@@ -185,3 +185,5 @@ echo "Next steps:"
 echo "1. Update Lovable.dev with this API URL"
 echo "2. Configure your Tally server with this API URL"
 echo "3. Start using the XML-native Tally integration!"
+
+

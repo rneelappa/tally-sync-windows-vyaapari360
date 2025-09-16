@@ -50,6 +50,18 @@ const builder = new xml2js.Builder({
 // In-memory XML storage (for Railway - consider Redis for production)
 const xmlStorage = new Map();
 
+// Master data storage for all Tally entities
+const masterDataStorage = {
+  ledgers: new Map(),
+  groups: new Map(),
+  stockItems: new Map(),
+  voucherTypes: new Map(),
+  units: new Map(),
+  godowns: new Map(),
+  costCenters: new Map(),
+  taxMasters: new Map()
+};
+
 // Cache for Tally URLs to avoid repeated Supabase calls
 const tallyUrlCache = new Map();
 
@@ -217,6 +229,32 @@ function voucherToJson(voucher) {
       godownId: entry.GODOWNID || ''
     })) : []
   };
+}
+
+// Extract master data from Tally response
+function extractMasterData(parsedData, dataType) {
+  const items = [];
+  
+  const tallyMessages = parsedData.RESPONSE?.BODY?.DATA?.TALLYMESSAGE;
+  if (!tallyMessages) return items;
+
+  const messageList = Array.isArray(tallyMessages) ? tallyMessages : [tallyMessages];
+
+  messageList.forEach(msg => {
+    if (msg[dataType]) {
+      const item = msg[dataType];
+      items.push({
+        GUID: normalize(item.GUID),
+        NAME: normalize(item.NAME),
+        PARENT: normalize(item.PARENT),
+        ...(item.OPENINGBALANCE && { OPENINGBALANCE: parseFloat(normalize(item.OPENINGBALANCE) || 0) }),
+        ...(item.BASEUNITS && { BASEUNITS: normalize(item.BASEUNITS) }),
+        ...(item.ISREVENUE && { ISREVENUE: normalize(item.ISREVENUE) === 'Yes' })
+      });
+    }
+  });
+  
+  return items;
 }
 
 // Extract vouchers from Tally response
@@ -488,6 +526,183 @@ app.put('/api/v1/voucher/:companyId/:divisionId/:voucherId', (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Comprehensive sync endpoint for all Tally data
+app.post('/api/v1/sync-comprehensive/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { fromDate = '20200101', toDate = '20251231' } = req.body;
+    
+    console.log(`🔄 Starting comprehensive sync for ${companyId}/${divisionId}...`);
+    
+    const results = {
+      vouchers: { total: 0, stored: 0, errors: 0 },
+      masterData: {
+        ledgers: 0,
+        groups: 0,
+        stockItems: 0,
+        voucherTypes: 0,
+        units: 0,
+        godowns: 0
+      },
+      errors: []
+    };
+
+    // 1. Sync detailed vouchers
+    console.log('📋 Syncing detailed vouchers...');
+    try {
+      const voucherXml = await fetchTallyData(companyId, divisionId, 'Vouchers', fromDate, toDate);
+      const parsedVouchers = await parseTallyResponse(voucherXml);
+      const vouchers = extractVouchers(parsedVouchers);
+      
+      console.log(`📋 Found ${vouchers.length} detailed vouchers`);
+      
+      // Store vouchers with detailed information
+      let storedCount = 0;
+      vouchers.forEach(voucher => {
+        const voucherId = voucher.ALTERID || voucher.$?.VCHKEY || 'unknown';
+        const key = `${companyId}/${divisionId}/${voucherId}`;
+        
+        xmlStorage.set(key, {
+          key,
+          data: voucher,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          source: 'tally-comprehensive'
+        });
+        
+        storedCount++;
+      });
+      
+      results.vouchers.total = vouchers.length;
+      results.vouchers.stored = storedCount;
+      console.log(`✅ Stored ${storedCount} detailed vouchers`);
+      
+    } catch (error) {
+      console.error('❌ Voucher sync failed:', error.message);
+      results.vouchers.errors++;
+      results.errors.push(`Voucher sync: ${error.message}`);
+    }
+
+    // 2. Sync master data
+    console.log('📊 Syncing master data...');
+    
+    // Sync Ledgers
+    try {
+      const ledgerXml = await fetchTallyData(companyId, divisionId, 'Ledger');
+      const parsedLedgers = await parseTallyResponse(ledgerXml);
+      const ledgers = extractMasterData(parsedLedgers, 'LEDGER');
+      
+      ledgers.forEach(ledger => {
+        const key = `${companyId}/${divisionId}/ledger/${ledger.GUID}`;
+        masterDataStorage.ledgers.set(key, {
+          key,
+          data: ledger,
+          createdAt: new Date().toISOString(),
+          source: 'tally'
+        });
+      });
+      
+      results.masterData.ledgers = ledgers.length;
+      console.log(`✅ Stored ${ledgers.length} ledgers`);
+    } catch (error) {
+      console.error('❌ Ledger sync failed:', error.message);
+      results.errors.push(`Ledger sync: ${error.message}`);
+    }
+
+    // Sync Groups
+    try {
+      const groupXml = await fetchTallyData(companyId, divisionId, 'Group');
+      const parsedGroups = await parseTallyResponse(groupXml);
+      const groups = extractMasterData(parsedGroups, 'GROUP');
+      
+      groups.forEach(group => {
+        const key = `${companyId}/${divisionId}/group/${group.GUID}`;
+        masterDataStorage.groups.set(key, {
+          key,
+          data: group,
+          createdAt: new Date().toISOString(),
+          source: 'tally'
+        });
+      });
+      
+      results.masterData.groups = groups.length;
+      console.log(`✅ Stored ${groups.length} groups`);
+    } catch (error) {
+      console.error('❌ Group sync failed:', error.message);
+      results.errors.push(`Group sync: ${error.message}`);
+    }
+
+    // Sync Stock Items
+    try {
+      const stockXml = await fetchTallyData(companyId, divisionId, 'StockItem');
+      const parsedStock = await parseTallyResponse(stockXml);
+      const stockItems = extractMasterData(parsedStock, 'STOCKITEM');
+      
+      stockItems.forEach(item => {
+        const key = `${companyId}/${divisionId}/stock/${item.GUID}`;
+        masterDataStorage.stockItems.set(key, {
+          key,
+          data: item,
+          createdAt: new Date().toISOString(),
+          source: 'tally'
+        });
+      });
+      
+      results.masterData.stockItems = stockItems.length;
+      console.log(`✅ Stored ${stockItems.length} stock items`);
+    } catch (error) {
+      console.error('❌ Stock item sync failed:', error.message);
+      results.errors.push(`Stock item sync: ${error.message}`);
+    }
+
+    // Sync Voucher Types
+    try {
+      const voucherTypeXml = await fetchTallyData(companyId, divisionId, 'VoucherType');
+      const parsedTypes = await parseTallyResponse(voucherTypeXml);
+      const voucherTypes = extractMasterData(parsedTypes, 'VOUCHERTYPE');
+      
+      voucherTypes.forEach(type => {
+        const key = `${companyId}/${divisionId}/vouchertype/${type.GUID}`;
+        masterDataStorage.voucherTypes.set(key, {
+          key,
+          data: type,
+          createdAt: new Date().toISOString(),
+          source: 'tally'
+        });
+      });
+      
+      results.masterData.voucherTypes = voucherTypes.length;
+      console.log(`✅ Stored ${voucherTypes.length} voucher types`);
+    } catch (error) {
+      console.error('❌ Voucher type sync failed:', error.message);
+      results.errors.push(`Voucher type sync: ${error.message}`);
+    }
+
+    console.log(`🎉 Comprehensive sync completed!`);
+    console.log(`📊 Results: ${results.vouchers.stored} vouchers, ${Object.values(results.masterData).reduce((a, b) => a + b, 0)} master data items`);
+
+    res.json({
+      success: true,
+      message: 'Comprehensive sync completed successfully',
+      data: {
+        ...results,
+        companyId,
+        divisionId,
+        dateRange: { fromDate, toDate },
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Comprehensive sync failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Comprehensive sync failed'
     });
   }
 });

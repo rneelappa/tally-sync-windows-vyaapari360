@@ -295,3 +295,5 @@ const apiService = new TallyAPIService(config[environment].apiBase);
 console.log('Tally API Integration Ready for Lovable.dev!');
 console.log('Environment:', environment);
 console.log('API Base:', config[environment].apiBase);
+
+
