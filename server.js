@@ -73,7 +73,7 @@ async function getTallyUrl(companyId, divisionId) {
       .from('divisions')
       .select('tally_url')
       .eq('company_id', companyId)
-      .eq('division_id', divisionId)
+      .eq('id', divisionId)
       .single();
     
     if (error) {
