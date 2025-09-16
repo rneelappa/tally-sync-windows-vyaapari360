@@ -166,7 +166,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
 
   let requestXml;
 
-  if (reportType === 'Vouchers' || reportType === 'DayBook') {
+  if (reportType === 'Vouchers' || reportType === 'DayBook' || reportType === 'VyaapariDateFilteredReport') {
     // Use pre-loaded TDL with proper scoping (Child Of + Belongs To)
     // This should return all vouchers (20,172+ confirmed working)
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
@@ -311,62 +311,36 @@ async function fetchTallyData(companyId, divisionId, reportType = 'DayBook', fro
 // Fetch all vouchers by making multiple requests to overcome pagination limits
 async function fetchAllVouchers(companyId, divisionId, fromDate = '', toDate = '') {
   try {
-    console.log(`🔄 Fetching ALL vouchers from Tally for ${companyId}/${divisionId}...`);
+    console.log(`🔄 Fetching ALL vouchers from Tally for ${companyId}/${divisionId} (FULL SYNC - no date restrictions)...`);
     
     // Get Tally URL from Supabase
     const tallyUrl = await getTallyUrl(companyId, divisionId);
     
-    // If no date range specified, use a broad range to get all vouchers
+    // For full sync, use the broadest possible date range to get ALL data
     const startDate = fromDate || '20200101';
     const endDate = toDate || '20251231';
     
-    console.log(`📅 Fetching vouchers from ${startDate} to ${endDate}`);
+    console.log(`📅 Full sync: fetching ALL vouchers from ${startDate} to ${endDate}`);
     
-    // Make multiple requests with different date ranges to get all vouchers
-    const allVouchers = [];
-    const yearRanges = [
-      { from: '20200101', to: '20201231' },
-      { from: '20210101', to: '20211231' },
-      { from: '20220101', to: '20221231' },
-      { from: '20230101', to: '20231231' },
-      { from: '20240101', to: '20241231' },
-      { from: '20250101', to: '20251231' }
-    ];
+    // Single request with corrected TDL to get all vouchers
+    const requestXml = createTallyRequest('VyaapariDateFilteredReport', startDate, endDate);
     
-    for (const range of yearRanges) {
-      try {
-        console.log(`🔄 Fetching vouchers for ${range.from} to ${range.to}...`);
-        
-        const requestXml = createTallyRequest('DayBook', range.from, range.to);
-        
-        const response = await axios.post(tallyUrl, requestXml, {
-          headers: {
-            'Content-Type': 'application/xml',
-            'ngrok-skip-browser-warning': 'true'
-          },
-          timeout: 30000
-        });
-        
-        const parsedData = await parseTallyResponse(response.data);
-        const vouchers = extractVouchers(parsedData);
-        
-        console.log(`✅ Found ${vouchers.length} vouchers for ${range.from} to ${range.to}`);
-        allVouchers.push(...vouchers);
-        
-        // Add a small delay between requests to avoid overwhelming Tally
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-      } catch (error) {
-        console.warn(`⚠️ Error fetching vouchers for ${range.from} to ${range.to}:`, error.message);
-        // Continue with next range even if one fails
-      }
-    }
+    const response = await axios.post(tallyUrl, requestXml, {
+      headers: {
+        'Content-Type': 'application/xml',
+        'ngrok-skip-browser-warning': 'true'
+      },
+      timeout: 60000 // Increased timeout for large dataset
+    });
     
-    console.log(`✅ Total vouchers fetched: ${allVouchers.length}`);
-    return allVouchers;
+    const parsedData = await parseTallyResponse(response.data);
+    const vouchers = extractVouchers(parsedData);
+    
+    console.log(`✅ Full sync complete: fetched ${vouchers.length} vouchers`);
+    return vouchers;
     
   } catch (error) {
-    console.error(`❌ Error fetching all vouchers:`, error.message);
+    console.error(`❌ Error in full voucher sync:`, error.message);
     throw error;
   }
 }
