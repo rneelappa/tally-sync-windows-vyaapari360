@@ -298,11 +298,40 @@ app.get('/api/v1/vouchers/:companyId/:divisionId', async (req, res) => {
         const date = voucher.DATE;
         if (!date) return false;
         
-        const voucherDate = new Date(
-          date.substring(0, 4) + '-' + 
-          date.substring(4, 6) + '-' + 
-          date.substring(6, 8)
-        );
+        // Handle DD-MMM-YY format (e.g., "2-Jun-25")
+        let voucherDate;
+        try {
+          if (date.includes('-') && date.includes('25')) {
+            // Parse DD-MMM-YY format
+            const parts = date.split('-');
+            const day = parts[0].padStart(2, '0');
+            const monthMap = {
+              'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+              'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+            };
+            const month = monthMap[parts[1]] || '01';
+            const year = '20' + parts[2]; // Convert 25 to 2025
+            voucherDate = new Date(`${year}-${month}-${day}`);
+          } else if (date.length === 8) {
+            // Handle YYYYMMDD format (fallback)
+            voucherDate = new Date(
+              date.substring(0, 4) + '-' + 
+              date.substring(4, 6) + '-' + 
+              date.substring(6, 8)
+            );
+          } else {
+            // Try direct parsing
+            voucherDate = new Date(date);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error parsing voucher date: ${date}`);
+          return false;
+        }
+        
+        if (isNaN(voucherDate.getTime())) {
+          console.warn(`⚠️ Invalid voucher date: ${date}`);
+          return false;
+        }
         
         if (from) {
           const fromDate = new Date(from);
