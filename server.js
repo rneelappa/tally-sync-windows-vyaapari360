@@ -289,13 +289,24 @@ function extractVouchers(parsedData) {
 app.get('/api/v1/health', (req, res) => {
   res.json({
     success: true,
-    message: 'Tally XML API is running',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    environment: NODE_ENV,
-    storage: {
-      totalVouchers: xmlStorage.size,
-      companies: Array.from(new Set(Array.from(xmlStorage.keys()).map(k => k.split('/')[0])))
+    data: {
+      message: 'Tally XML API is running - Database Service',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      environment: NODE_ENV,
+      service: 'Database - Data Serving',
+      storage: {
+        totalVouchers: xmlStorage.size,
+        companies: Array.from(new Set(Array.from(xmlStorage.keys()).map(k => k.split('/')[0]))),
+        masterData: {
+          ledgers: masterDataStorage.ledgers.size,
+          groups: masterDataStorage.groups.size,
+          stockItems: masterDataStorage.stockItems.size,
+          voucherTypes: masterDataStorage.voucherTypes.size,
+          units: masterDataStorage.units.size,
+          godowns: masterDataStorage.godowns.size
+        }
+      }
     }
   });
 });
@@ -707,7 +718,7 @@ app.post('/api/v1/sync-comprehensive/:companyId/:divisionId', async (req, res) =
   }
 });
 
-// Sync data from Tally
+// [DEPRECATED] Sync data from Tally - Use /api/v1/tallysync/sync instead
 app.post('/api/v1/sync/:companyId/:divisionId', async (req, res) => {
   try {
     const { companyId, divisionId } = req.params;
@@ -852,6 +863,513 @@ app.use((err, req, res, next) => {
     error: 'Internal server error'
   });
 });
+
+// Master Data Endpoints - Serve from Database
+app.get('/api/v1/ledgers/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { page = 1, limit = 50, search } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+    
+    // Get ledgers from database
+    const allLedgers = Array.from(masterDataStorage.ledgers.values())
+      .filter(ledger => {
+        const key = ledger.key;
+        return key.startsWith(`${companyId}/${divisionId}/ledger/`);
+      })
+      .map(l => l.data);
+    
+    // Apply search filter
+    let filteredLedgers = allLedgers;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredLedgers = allLedgers.filter(ledger => 
+        ledger.NAME?.toLowerCase().includes(searchLower) ||
+        ledger.PARENT?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    const total = filteredLedgers.length;
+    const paginatedLedgers = filteredLedgers.slice(offset, offset + limitNum);
+    
+    res.json({
+      success: true,
+      data: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        ledgers: paginatedLedgers,
+        service: 'Database - Data Serving'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching ledgers from database:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/v1/groups/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { page = 1, limit = 50, search } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+    
+    // Get groups from database
+    const allGroups = Array.from(masterDataStorage.groups.values())
+      .filter(group => {
+        const key = group.key;
+        return key.startsWith(`${companyId}/${divisionId}/group/`);
+      })
+      .map(g => g.data);
+    
+    // Apply search filter
+    let filteredGroups = allGroups;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredGroups = allGroups.filter(group => 
+        group.NAME?.toLowerCase().includes(searchLower) ||
+        group.PARENT?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    const total = filteredGroups.length;
+    const paginatedGroups = filteredGroups.slice(offset, offset + limitNum);
+    
+    res.json({
+      success: true,
+      data: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        groups: paginatedGroups,
+        service: 'Database - Data Serving'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching groups from database:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/v1/stock-items/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { page = 1, limit = 50, search } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+    
+    // Get stock items from database
+    const allStockItems = Array.from(masterDataStorage.stockItems.values())
+      .filter(item => {
+        const key = item.key;
+        return key.startsWith(`${companyId}/${divisionId}/stock/`);
+      })
+      .map(i => i.data);
+    
+    // Apply search filter
+    let filteredItems = allStockItems;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredItems = allStockItems.filter(item => 
+        item.NAME?.toLowerCase().includes(searchLower) ||
+        item.PARENT?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    const total = filteredItems.length;
+    const paginatedItems = filteredItems.slice(offset, offset + limitNum);
+    
+    res.json({
+      success: true,
+      data: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        stockItems: paginatedItems,
+        service: 'Database - Data Serving'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching stock items from database:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/v1/voucher-types/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { page = 1, limit = 50, search } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+    
+    // Get voucher types from database
+    const allVoucherTypes = Array.from(masterDataStorage.voucherTypes.values())
+      .filter(type => {
+        const key = type.key;
+        return key.startsWith(`${companyId}/${divisionId}/vouchertype/`);
+      })
+      .map(t => t.data);
+    
+    // Apply search filter
+    let filteredTypes = allVoucherTypes;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredTypes = allVoucherTypes.filter(type => 
+        type.NAME?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    const total = filteredTypes.length;
+    const paginatedTypes = filteredTypes.slice(offset, offset + limitNum);
+    
+    res.json({
+      success: true,
+      data: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        voucherTypes: paginatedTypes,
+        service: 'Database - Data Serving'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching voucher types from database:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ========================================
+// TALLYSYNC APIs - For Data Population
+// ========================================
+
+// TallySync: Health check with database stats
+app.get('/api/v1/tallysync/health', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      message: 'TallySync API is running - Data Population Service',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      environment: NODE_ENV,
+      storage: {
+        totalVouchers: xmlStorage.size,
+        companies: Array.from(new Set(Array.from(xmlStorage.keys()).map(k => k.split('/')[0]))),
+        masterData: {
+          ledgers: masterDataStorage.ledgers.size,
+          groups: masterDataStorage.groups.size,
+          stockItems: masterDataStorage.stockItems.size,
+          voucherTypes: masterDataStorage.voucherTypes.size,
+          units: masterDataStorage.units.size,
+          godowns: masterDataStorage.godowns.size
+        }
+      }
+    }
+  });
+});
+
+// TallySync: Comprehensive sync from Tally to Database
+app.post('/api/v1/tallysync/sync-comprehensive/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { fromDate = '20200101', toDate = '20251231' } = req.body;
+    
+    console.log(`🔄 TallySync: Starting comprehensive sync for ${companyId}/${divisionId}...`);
+    
+    const results = {
+      vouchers: { total: 0, stored: 0, errors: 0 },
+      masterData: {
+        ledgers: 0,
+        groups: 0,
+        stockItems: 0,
+        voucherTypes: 0,
+        units: 0,
+        godowns: 0
+      },
+      errors: []
+    };
+
+    // 1. Sync detailed vouchers
+    console.log('📋 TallySync: Syncing detailed vouchers...');
+    try {
+      const voucherXml = await fetchTallyData(companyId, divisionId, 'Vouchers', fromDate, toDate);
+      const parsedVouchers = await parseTallyResponse(voucherXml);
+      const vouchers = extractVouchers(parsedVouchers);
+      
+      console.log(`📋 TallySync: Found ${vouchers.length} detailed vouchers`);
+      
+      // Store vouchers in database
+      let storedCount = 0;
+      vouchers.forEach(voucher => {
+        const voucherId = voucher.ALTERID || voucher.$?.VCHKEY || 'unknown';
+        const key = `${companyId}/${divisionId}/${voucherId}`;
+        
+        xmlStorage.set(key, {
+          key,
+          data: voucher,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          source: 'tallysync-comprehensive'
+        });
+        
+        storedCount++;
+      });
+      
+      results.vouchers.total = vouchers.length;
+      results.vouchers.stored = storedCount;
+      console.log(`✅ TallySync: Stored ${storedCount} detailed vouchers`);
+      
+    } catch (error) {
+      console.error('❌ TallySync: Voucher sync failed:', error.message);
+      results.vouchers.errors++;
+      results.errors.push(`Voucher sync: ${error.message}`);
+    }
+
+    // 2. Sync master data
+    console.log('📊 TallySync: Syncing master data...');
+    
+    // Sync Ledgers
+    try {
+      const ledgerXml = await fetchTallyData(companyId, divisionId, 'Ledger');
+      const parsedLedgers = await parseTallyResponse(ledgerXml);
+      const ledgers = extractMasterData(parsedLedgers, 'LEDGER');
+      
+      ledgers.forEach(ledger => {
+        const key = `${companyId}/${divisionId}/ledger/${ledger.GUID}`;
+        masterDataStorage.ledgers.set(key, {
+          key,
+          data: ledger,
+          createdAt: new Date().toISOString(),
+          source: 'tallysync'
+        });
+      });
+      
+      results.masterData.ledgers = ledgers.length;
+      console.log(`✅ TallySync: Stored ${ledgers.length} ledgers`);
+    } catch (error) {
+      console.error('❌ TallySync: Ledger sync failed:', error.message);
+      results.errors.push(`Ledger sync: ${error.message}`);
+    }
+
+    // Sync Groups
+    try {
+      const groupXml = await fetchTallyData(companyId, divisionId, 'Group');
+      const parsedGroups = await parseTallyResponse(groupXml);
+      const groups = extractMasterData(parsedGroups, 'GROUP');
+      
+      groups.forEach(group => {
+        const key = `${companyId}/${divisionId}/group/${group.GUID}`;
+        masterDataStorage.groups.set(key, {
+          key,
+          data: group,
+          createdAt: new Date().toISOString(),
+          source: 'tallysync'
+        });
+      });
+      
+      results.masterData.groups = groups.length;
+      console.log(`✅ TallySync: Stored ${groups.length} groups`);
+    } catch (error) {
+      console.error('❌ TallySync: Group sync failed:', error.message);
+      results.errors.push(`Group sync: ${error.message}`);
+    }
+
+    // Sync Stock Items
+    try {
+      const stockXml = await fetchTallyData(companyId, divisionId, 'StockItem');
+      const parsedStock = await parseTallyResponse(stockXml);
+      const stockItems = extractMasterData(parsedStock, 'STOCKITEM');
+      
+      stockItems.forEach(item => {
+        const key = `${companyId}/${divisionId}/stock/${item.GUID}`;
+        masterDataStorage.stockItems.set(key, {
+          key,
+          data: item,
+          createdAt: new Date().toISOString(),
+          source: 'tallysync'
+        });
+      });
+      
+      results.masterData.stockItems = stockItems.length;
+      console.log(`✅ TallySync: Stored ${stockItems.length} stock items`);
+    } catch (error) {
+      console.error('❌ TallySync: Stock item sync failed:', error.message);
+      results.errors.push(`Stock item sync: ${error.message}`);
+    }
+
+    // Sync Voucher Types
+    try {
+      const voucherTypeXml = await fetchTallyData(companyId, divisionId, 'VoucherType');
+      const parsedTypes = await parseTallyResponse(voucherTypeXml);
+      const voucherTypes = extractMasterData(parsedTypes, 'VOUCHERTYPE');
+      
+      voucherTypes.forEach(type => {
+        const key = `${companyId}/${divisionId}/vouchertype/${type.GUID}`;
+        masterDataStorage.voucherTypes.set(key, {
+          key,
+          data: type,
+          createdAt: new Date().toISOString(),
+          source: 'tallysync'
+        });
+      });
+      
+      results.masterData.voucherTypes = voucherTypes.length;
+      console.log(`✅ TallySync: Stored ${voucherTypes.length} voucher types`);
+    } catch (error) {
+      console.error('❌ TallySync: Voucher type sync failed:', error.message);
+      results.errors.push(`Voucher type sync: ${error.message}`);
+    }
+
+    console.log(`🎉 TallySync: Comprehensive sync completed!`);
+    console.log(`📊 TallySync Results: ${results.vouchers.stored} vouchers, ${Object.values(results.masterData).reduce((a, b) => a + b, 0)} master data items`);
+
+    res.json({
+      success: true,
+      message: 'TallySync comprehensive sync completed successfully',
+      data: {
+        ...results,
+        companyId,
+        divisionId,
+        dateRange: { fromDate, toDate },
+        timestamp: new Date().toISOString(),
+        service: 'TallySync - Data Population'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ TallySync: Comprehensive sync failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'TallySync comprehensive sync failed'
+    });
+  }
+});
+
+// TallySync: Sync vouchers from Tally to Database
+app.post('/api/v1/tallysync/sync/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    
+    console.log(`🔄 TallySync: Syncing ALL vouchers for ${companyId}/${divisionId} (no date filtering)`);
+    
+    // Fetch data from Tally - try Vouchers Collection first for detailed data
+    let xmlData;
+    try {
+      console.log('🔄 TallySync: Trying Vouchers Collection for detailed data...');
+      xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', '', '');
+    } catch (error) {
+      console.log('⚠️ TallySync: Vouchers Collection failed, falling back to DayBook...');
+      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
+    }
+    const parsedData = await parseTallyResponse(xmlData);
+    const vouchers = extractVouchers(parsedData);
+    
+    console.log(`📋 TallySync: Found ${vouchers.length} vouchers`);
+    
+    let storedCount = 0;
+    let errorCount = 0;
+    
+    // Store each voucher in database
+    for (const voucher of vouchers) {
+      try {
+        const voucherId = voucher.ALTERID || voucher.$?.VCHKEY || 'unknown';
+        const key = `${companyId}/${divisionId}/${voucherId}`;
+        
+        xmlStorage.set(key, {
+          key,
+          data: voucher,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          source: 'tallysync'
+        });
+        
+        storedCount++;
+        
+      } catch (error) {
+        console.error(`❌ TallySync: Error storing voucher:`, error.message);
+        errorCount++;
+      }
+    }
+    
+    console.log(`✅ TallySync: Stored ${storedCount} vouchers. Total in database: ${xmlStorage.size}`);
+    
+    res.json({
+      success: true,
+      message: 'TallySync voucher sync completed successfully',
+      data: {
+        totalVouchers: vouchers.length,
+        storedVouchers: storedCount,
+        errorCount,
+        companyId,
+        divisionId,
+        service: 'TallySync - Data Population'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ TallySync: Sync failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'TallySync voucher sync failed'
+    });
+  }
+});
+
+// TallySync: Clear database (for testing)
+app.post('/api/v1/tallysync/clear', (req, res) => {
+  const voucherCount = xmlStorage.size;
+  const masterDataCount = Object.values(masterDataStorage).reduce((acc, storage) => acc + storage.size, 0);
+  
+  xmlStorage.clear();
+  Object.values(masterDataStorage).forEach(storage => storage.clear());
+  
+  console.log(`🗑️ TallySync: Cleared ${voucherCount} vouchers and ${masterDataCount} master data items`);
+  
+  res.json({
+    success: true,
+    message: 'TallySync database cleared successfully',
+    data: {
+      clearedVouchers: voucherCount,
+      clearedMasterData: masterDataCount,
+      service: 'TallySync - Data Population'
+    }
+  });
+});
+
+// ========================================
+// END TALLYSYNC APIs
+// ========================================
 
 // 404 handler
 app.use((req, res) => {
