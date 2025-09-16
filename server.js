@@ -219,6 +219,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -236,6 +237,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
