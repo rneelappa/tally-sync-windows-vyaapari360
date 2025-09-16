@@ -136,14 +136,14 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   let requestXml;
 
   if (reportType === 'Vouchers' || reportType === 'DayBook') {
-    // Use standard Tally DayBook report (no custom TDL)
+    // Use custom date-filtered TDL report (requires VyaapariDateFilteredReport.tdl to be loaded in Tally)
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>DayBook</ID>
+    <ID>VyaapariDateFilteredReport</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -151,7 +151,6 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVFROMDATE>${fromDate}</SVFROMDATE>
         <SVTODATE>${toDate}</SVTODATE>
-        <EXPLODEFLAG>Yes</EXPLODEFLAG>
       </STATICVARIABLES>
     </DESC>
   </BODY>

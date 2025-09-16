@@ -1,0 +1,62 @@
+[Report: VyaapariDateFilteredReport]
+  Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: VyaapariForm
+
+[Form: VyaapariForm]
+  Parts: VyaapariPart
+
+[Part: VyaapariPart]
+  Lines: VyaapariLine
+  Repeat: VyaapariLine : VyaapariVoucherCollection
+  Scrolled: Vertical
+
+[Line: VyaapariLine]
+  Fields: FldGuid, FldDate, FldVoucherType, FldVoucherNumber, FldReference, FldReferenceDate, FldNarration, FldPartyName, FldPlaceOfSupply, FldIsInvoice, FldIsAccounting, FldIsInventory, FldAmount
+
+[Field: FldGuid]
+  Set: $Guid
+
+[Field: FldDate]
+  Set: $Date
+
+[Field: FldVoucherType]
+  Set: $VoucherTypeName
+
+[Field: FldVoucherNumber]
+  Set: $VoucherNumber
+
+[Field: FldReference]
+  Set: $Reference
+
+[Field: FldReferenceDate]
+  Set: $ReferenceDate
+
+[Field: FldNarration]
+  Set: $$StringFindAndReplace:$Narration:'"':'""'
+
+[Field: FldPartyName]
+  Set: $$StringFindAndReplace:$PartyLedgerName:'"':'""'
+
+[Field: FldPlaceOfSupply]
+  Set: $$StringFindAndReplace:$PlaceOfSupply:'"':'""'
+
+[Field: FldIsInvoice]
+  Set: if $$IsSales:$VoucherTypeName or $$IsPurchase:$VoucherTypeName then 1 else 0
+
+[Field: FldIsAccounting]
+  Set: if $$IsAccountingVch:$VoucherTypeName then 1 else 0
+
+[Field: FldIsInventory]
+  Set: if $$IsInventoryVch:$VoucherTypeName then 1 else 0
+
+[Field: FldAmount]
+  Set: $Amount
+
+[Collection: VyaapariVoucherCollection]
+  Type: Voucher
+  Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, IsInvoice, IsAccounting, IsInventory, IsCancelled, IsOptional, Amount
+  Filter: VyaapariDateFilter
+
+[System: VyaapariDateFilter]
+  Type: Formulae
+  Formula: NOT $IsCancelled AND NOT $IsOptional AND $$IsGTE:$Date:##SVFROMDATE AND $$IsLTE:$Date:##SVTODATE
