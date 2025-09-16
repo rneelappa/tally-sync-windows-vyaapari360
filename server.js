@@ -47,6 +47,12 @@ const builder = new xml2js.Builder({
   headless: true
 });
 
+// Helper function to normalize Tally string values (remove extra spaces, newlines, etc.)
+function normalize(value) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/[\r\n\t]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 // In-memory XML storage (for Railway - consider Redis for production)
 const xmlStorage = new Map();
 
