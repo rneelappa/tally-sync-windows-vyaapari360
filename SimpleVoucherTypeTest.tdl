@@ -1,0 +1,34 @@
+[Report: SimpleVoucherTypeTest]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: SimpleVTForm
+
+[Form: SimpleVTForm]
+  Parts: SimpleVTPart
+  XMLTAG: ENVELOPE
+
+[Part: SimpleVTPart]
+  Lines: SimpleVTLine
+  Repeat: SimpleVTLine : SimpleVTCollection
+  SCROLLED: Vertical
+
+[Line: SimpleVTLine]
+  Fields: VTGuid, VTName, VTParent
+  XMLTAG: VOUCHERTYPE
+
+[Field: VTGuid]
+  XMLTAG: GUID
+  Set: $Guid
+
+[Field: VTName]
+  XMLTAG: NAME
+  Set: $Name
+
+[Field: VTParent]
+  XMLTAG: PARENT
+  Set: $Parent
+
+[Collection: SimpleVTCollection]
+  Type: VoucherType
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Name, Parent

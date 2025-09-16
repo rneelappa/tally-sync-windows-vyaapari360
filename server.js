@@ -195,7 +195,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>TallyDatabaseLoaderReportLedger</ID>
+    <ID>List of Accounts</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -213,7 +213,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>TallyDatabaseLoaderReportGroup</ID>
+    <ID>List of Groups</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -230,7 +230,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>TallyDatabaseLoaderReportStockItem</ID>
+    <ID>List of Stock Items</ID>
   </HEADER>
   <BODY>
     <DESC>
