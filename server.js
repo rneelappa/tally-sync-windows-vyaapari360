@@ -129,7 +129,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   let requestXml;
 
   if (reportType === 'Vouchers' || reportType === 'DayBook') {
-    // Comprehensive voucher request with detailed TDL
+    // Use standard Tally DayBook report (no custom TDL)
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
@@ -146,76 +146,6 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
         <SVTODATE>${toDate}</SVTODATE>
         <EXPLODEFLAG>Yes</EXPLODEFLAG>
       </STATICVARIABLES>
-      <TDL>
-        <TDLMESSAGE>
-          <REPORT NAME="DayBook">
-            <FORMS>List</FORMS>
-            <VARIABLE>SVFromDate,SVToDate</VARIABLE>
-            <OBJECTS>Voucher</OBJECTS>
-            <FILTERS>FilterByDate</FILTERS>
-          </REPORT>
-          
-          <FORM NAME="List">
-            <TOPPARTS>Part1</TOPPARTS>
-            <XMLTAG>DAYBOOK</XMLTAG>
-          </FORM>
-          
-          <PART NAME="Part1">
-            <TOPLINES>Line1</TOPLINES>
-            <REPEAT>Line1 : VoucherCollection</REPEAT>
-            <SCROLLED>Vertical</SCROLLED>
-          </PART>
-          
-          <LINE NAME="Line1">
-            <FIELDS>FldVoucherNumber,FldVoucherType,FldDate,FldNarration,FldPartyName,FldAmount,FldGUID</FIELDS>
-            <XMLTAG>VOUCHER</XMLTAG>
-          </LINE>
-          
-          <FIELD NAME="FldVoucherNumber">
-            <SET>$VoucherNumber</SET>
-            <XMLTAG>VOUCHERNUMBER</XMLTAG>
-          </FIELD>
-          
-          <FIELD NAME="FldVoucherType">
-            <SET>$VoucherTypeName</SET>
-            <XMLTAG>VOUCHERTYPENAME</XMLTAG>
-          </FIELD>
-          
-          <FIELD NAME="FldDate">
-            <SET>$Date</SET>
-            <XMLTAG>DATE</XMLTAG>
-          </FIELD>
-          
-          <FIELD NAME="FldNarration">
-            <SET>$Narration</SET>
-            <XMLTAG>NARRATION</XMLTAG>
-          </FIELD>
-          
-          <FIELD NAME="FldPartyName">
-            <SET>$PartyLedgerName</SET>
-            <XMLTAG>PARTYLEDGERNAME</XMLTAG>
-          </FIELD>
-          
-          <FIELD NAME="FldAmount">
-            <SET>$Amount</SET>
-            <XMLTAG>AMOUNT</XMLTAG>
-          </FIELD>
-          
-          <FIELD NAME="FldGUID">
-            <SET>$GUID</SET>
-            <XMLTAG>GUID</XMLTAG>
-          </FIELD>
-          
-          <COLLECTION NAME="VoucherCollection">
-            <TYPE>Voucher</TYPE>
-            <FILTERS>FilterByDate</FILTERS>
-          </COLLECTION>
-          
-          <SYSTEM TYPE="Formulae" NAME="FilterByDate">
-            <FORMULA>$Date >= ##SVFromDate AND $Date <= ##SVToDate AND NOT $IsCancelled AND NOT $IsOptional</FORMULA>
-          </SYSTEM>
-        </TDLMESSAGE>
-      </TDL>
     </DESC>
   </BODY>
 </ENVELOPE>`;
@@ -477,10 +407,71 @@ function extractVouchers(parsedData) {
     return vouchers;
   }
   
-  // Process TALLYMESSAGE structure (legacy)
+  // Process standard Tally TALLYMESSAGE structure
   if (dataSource.TALLYMESSAGE) {
-    console.log('📊 Processing TALLYMESSAGE vouchers...');
-    const dataArray = Array.isArray(dataSource.TALLYMESSAGE) ? dataSource.TALLYMESSAGE : [dataSource.TALLYMESSAGE];
+    console.log('📊 Processing standard Tally TALLYMESSAGE vouchers...');
+    const messageArray = Array.isArray(dataSource.TALLYMESSAGE) ? dataSource.TALLYMESSAGE : [dataSource.TALLYMESSAGE];
+    
+    messageArray.forEach(message => {
+      if (message.VOUCHER) {
+        const voucherArray = Array.isArray(message.VOUCHER) ? message.VOUCHER : [message.VOUCHER];
+        
+        voucherArray.forEach(voucher => {
+          // Extract basic voucher information
+          const voucherData = {
+            GUID: normalize(voucher.GUID),
+            VOUCHERNUMBER: normalize(voucher.VOUCHERNUMBER),
+            VOUCHERTYPENAME: normalize(voucher.VOUCHERTYPENAME),
+            DATE: normalize(voucher.DATE),
+            PARTYLEDGERNAME: normalize(voucher.PARTYLEDGERNAME),
+            NARRATION: normalize(voucher.NARRATION),
+            AMOUNT: parseFloat(normalize(voucher.AMOUNT) || 0),
+            ISINVOICE: normalize(voucher.ISINVOICE) === 'Yes',
+            ISACCOUNTING: normalize(voucher.ISACCOUNTING) === 'Yes',
+            ISINVENTORY: normalize(voucher.ISINVENTORY) === 'Yes',
+            entries: [],
+            inventoryEntries: []
+          };
+          
+          // Extract ledger entries if available
+          if (voucher.ALLLEDGERENTRIES?.LIST) {
+            const ledgerEntries = Array.isArray(voucher.ALLLEDGERENTRIES.LIST) ? 
+              voucher.ALLLEDGERENTRIES.LIST : [voucher.ALLLEDGERENTRIES.LIST];
+            
+            voucherData.entries = ledgerEntries.map(entry => ({
+              LEDGERNAME: normalize(entry.LEDGERNAME),
+              AMOUNT: parseFloat(normalize(entry.AMOUNT) || 0),
+              ISDEEMEDPOSITIVE: normalize(entry.ISDEEMEDPOSITIVE) === 'Yes'
+            }));
+          }
+          
+          // Extract inventory entries if available
+          if (voucher.ALLINVENTORYENTRIES?.LIST) {
+            const inventoryEntries = Array.isArray(voucher.ALLINVENTORYENTRIES.LIST) ? 
+              voucher.ALLINVENTORYENTRIES.LIST : [voucher.ALLINVENTORYENTRIES.LIST];
+            
+            voucherData.inventoryEntries = inventoryEntries.map(entry => ({
+              STOCKITEMNAME: normalize(entry.STOCKITEMNAME),
+              ACTUALQTY: parseFloat(normalize(entry.ACTUALQTY) || 0),
+              RATE: parseFloat(normalize(entry.RATE) || 0),
+              AMOUNT: parseFloat(normalize(entry.AMOUNT) || 0),
+              GODOWNNAME: normalize(entry.GODOWNNAME)
+            }));
+          }
+          
+          vouchers.push(voucherData);
+        });
+      }
+    });
+    
+    console.log(`✅ Extracted ${vouchers.length} vouchers from TALLYMESSAGE`);
+    return vouchers;
+  }
+  
+  // Legacy processing for other structures
+  if (dataSource.DATA) {
+    console.log('📊 Processing legacy DATA structure...');
+    const dataArray = Array.isArray(dataSource.DATA) ? dataSource.DATA : [dataSource.DATA];
     
     dataArray.forEach(data => {
       if (data.TALLYMESSAGE) {
