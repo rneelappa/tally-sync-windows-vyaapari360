@@ -1,0 +1,92 @@
+{
+  "railway": {
+    "api_base": "https://tally-sync-vyaapari360-production.up.railway.app",
+    "endpoints": {
+      "health": "/api/v1/health",
+      "bulk_sync": "/api/v1/bulk-sync",
+      "sync_status": "/api/v1/sync-status",
+      "metadata": "/api/v1/metadata"
+    },
+    "company_id": "SKM",
+    "division_id": "MAIN",
+    "batch_size": 1000,
+    "retry_attempts": 3,
+    "timeout": 30000
+  },
+  "tally": {
+    "server": "localhost",
+    "port": 9000,
+    "company": "",
+    "fromdate": "auto",
+    "todate": "auto",
+    "sync": "full",
+    "frequency": 0
+  },
+  "sync": {
+    "mode": "full",
+    "schedule": {
+      "master_data": "0 2 * * *",
+      "transaction_data": "0 */4 * * *"
+    },
+    "parallel_processing": true,
+    "max_concurrent": 5,
+    "temp_directory": "./temp",
+    "log_level": "info"
+  },
+  "database_mapping": {
+    "mst_group": {
+      "railway_table": "groups",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 1
+    },
+    "mst_ledger": {
+      "railway_table": "ledgers", 
+      "primary_key": "guid",
+      "required_fields": ["guid", "name", "parent"],
+      "sync_priority": 2
+    },
+    "mst_stockitem": {
+      "railway_table": "stock_items",
+      "primary_key": "guid", 
+      "required_fields": ["guid", "name"],
+      "sync_priority": 3
+    },
+    "mst_vouchertype": {
+      "railway_table": "voucher_types",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 4
+    },
+    "mst_unit": {
+      "railway_table": "units",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 5
+    },
+    "mst_godown": {
+      "railway_table": "godowns",
+      "primary_key": "guid", 
+      "required_fields": ["guid", "name"],
+      "sync_priority": 6
+    },
+    "trn_voucher": {
+      "railway_table": "vouchers",
+      "primary_key": "guid",
+      "required_fields": ["guid", "voucher_number", "date", "voucher_type"],
+      "sync_priority": 10
+    },
+    "trn_accounting": {
+      "railway_table": "accounting_entries",
+      "primary_key": "guid",
+      "required_fields": ["guid", "voucher_guid", "ledger_name", "amount"],
+      "sync_priority": 11
+    },
+    "trn_inventory": {
+      "railway_table": "inventory_entries", 
+      "primary_key": "guid",
+      "required_fields": ["guid", "voucher_guid", "stock_item_name", "quantity"],
+      "sync_priority": 12
+    }
+  }
+}
