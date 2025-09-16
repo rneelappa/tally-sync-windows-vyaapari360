@@ -1,9 +1,9 @@
 [System: Formulae]
   VyaNotCancelled: (NOT $IsCancelled) AND (NOT $IsOptional)
-  VyaDateBetween: ($Date >= $$Date:##SVFromDate) AND ($Date <= $$Date:##SVToDate)
+  VyaDateBetween: ($Date >= $$Date:##SVFROMDATE) AND ($Date <= $$Date:##SVTODATE)
 
 [Report: VyaapariDateFilteredReport]
-  Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
   Forms: VyaForm
 
 [Form: VyaForm]
