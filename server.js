@@ -1193,9 +1193,13 @@ app.post('/api/v1/sync-comprehensive/:companyId/:divisionId', async (req, res) =
     
     // Sync Ledgers
     try {
+      console.log('🔄 Fetching ledger data from Tally...');
       const ledgerXml = await fetchTallyData(companyId, divisionId, 'Ledger');
+      console.log(`📊 Ledger response length: ${ledgerXml.length} characters`);
       const parsedLedgers = await parseTallyResponse(ledgerXml);
+      console.log('📋 Ledger parsed structure keys:', Object.keys(parsedLedgers.ENVELOPE || {}));
       const ledgers = extractMasterData(parsedLedgers, 'LEDGER');
+      console.log(`✅ Extracted ${ledgers.length} ledgers from Tally`);
       
       ledgers.forEach(ledger => {
         const key = `${companyId}/${divisionId}/ledger/${ledger.GUID}`;
