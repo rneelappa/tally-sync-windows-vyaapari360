@@ -1,0 +1,36 @@
+[Report: TallyDatabaseLoaderReportCostCentre]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: CostCentreForm
+
+[Form: CostCentreForm]
+  Parts: CostCentrePart
+
+[Part: CostCentrePart]
+  Lines: CostCentreLine
+  Repeat: CostCentreLine : CostCentreCollection
+  SCROLLED: Vertical
+
+[Line: CostCentreLine]
+  Fields: CcFld01, CcFld02, CcFld03, CcFld04
+
+[Field: CcFld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: CcFld02]
+  Set: $$StringFindAndReplace:$Name:'"':'""'
+  XMLTAG: F02
+
+[Field: CcFld03]
+  Set: if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+  XMLTAG: F03
+
+[Field: CcFld04]
+  Set: $Category
+  XMLTAG: F04
+
+[Collection: CostCentreCollection]
+  Type: CostCentre
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Name, Parent, Category

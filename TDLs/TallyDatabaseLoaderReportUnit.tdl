@@ -1,0 +1,48 @@
+[Report: TallyDatabaseLoaderReportUnit]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: MyForm
+
+[Form: MyForm]
+  Parts: MyPart01
+
+[Part: MyPart01]
+  Lines: MyLine01
+  Repeat: MyLine01 : MyCollection
+  SCROLLED: Vertical
+
+[Line: MyLine01]
+  Fields: Fld01, Fld02, Fld03, Fld04, Fld05, Fld06, Fld07
+
+[Field: Fld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: Fld02]
+  Set: $Symbol
+  XMLTAG: F02
+
+[Field: Fld03]
+  Set: $FormalName
+  XMLTAG: F03
+
+[Field: Fld04]
+  Set: if $IsSimpleUnit then 1 else 0
+  XMLTAG: F04
+
+[Field: Fld05]
+  Set: $BaseUnits
+  XMLTAG: F05
+
+[Field: Fld06]
+  Set: $AdditionalUnits
+  XMLTAG: F06
+
+[Field: Fld07]
+  Set: if $$IsEmpty:$Conversion then "0" else $$String:$Conversion
+  XMLTAG: F07
+
+[Collection: MyCollection]
+  Type: Unit
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Symbol, FormalName, IsSimpleUnit, BaseUnits, AdditionalUnits, Conversion

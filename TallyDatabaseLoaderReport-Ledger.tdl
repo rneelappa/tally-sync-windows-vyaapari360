@@ -1,0 +1,80 @@
+[Report: TallyDatabaseLoaderReportLedger]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: MyForm
+
+[Form: MyForm]
+  Parts: MyPart01
+
+[Part: MyPart01]
+  Lines: MyLine01
+  Repeat: MyLine01 : MyCollection
+  SCROLLED: Vertical
+
+[Line: MyLine01]
+  Fields: Fld01, Fld02, Fld03, Fld04, Fld05, Fld06, Fld07, Fld08, Fld09, Fld10, Fld11, Fld12, Fld13, Fld14, Fld15
+
+[Field: Fld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: Fld02]
+  Set: $$StringFindAndReplace:$Name:'"':'""'
+  XMLTAG: F02
+
+[Field: Fld03]
+  Set: if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+  XMLTAG: F03
+
+[Field: Fld04]
+  Set: $OnlyAlias
+  XMLTAG: F04
+
+[Field: Fld05]
+  Set: $Description
+  XMLTAG: F05
+
+[Field: Fld06]
+  Set: $Narration
+  XMLTAG: F06
+
+[Field: Fld07]
+  Set: if $IsRevenue then 1 else 0
+  XMLTAG: F07
+
+[Field: Fld08]
+  Set: if $IsDeemedPositive then 1 else 0
+  XMLTAG: F08
+
+[Field: Fld09]
+  Set: $$StringFindAndReplace:(if $$IsDebit:$OpeningBalance then -$$NumValue:$OpeningBalance else $$NumValue:$OpeningBalance):"(-)":"-"
+  XMLTAG: F09
+
+[Field: Fld10]
+  Set: $$StringFindAndReplace:(if $$IsDebit:$ClosingBalance then -$$NumValue:$ClosingBalance else $$NumValue:$ClosingBalance):"(-)":"-"
+  XMLTAG: F10
+
+[Field: Fld11]
+  Set: $MailingName
+  XMLTAG: F11
+
+[Field: Fld12]
+  Set: if $$IsEmpty:$Address then "" else $$FullList:Address:$Address
+  XMLTAG: F12
+
+[Field: Fld13]
+  Set: $LedStateName
+  XMLTAG: F13
+
+[Field: Fld14]
+  Set: $CountryName
+  XMLTAG: F14
+
+[Field: Fld15]
+  Set: $PinCode
+  XMLTAG: F15
+
+[Collection: MyCollection]
+  Type: Ledger
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Name, Parent, OnlyAlias, Description, Narration, IsRevenue, IsDeemedPositive, OpeningBalance, ClosingBalance, MailingName, Address, LedStateName, CountryName, PinCode

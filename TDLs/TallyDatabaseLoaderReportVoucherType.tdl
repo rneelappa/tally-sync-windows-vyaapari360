@@ -1,0 +1,44 @@
+[Report: TallyDatabaseLoaderReportVoucherType]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: MyForm
+
+[Form: MyForm]
+  Parts: MyPart01
+
+[Part: MyPart01]
+  Lines: MyLine01
+  Repeat: MyLine01 : MyCollection
+  SCROLLED: Vertical
+
+[Line: MyLine01]
+  Fields: Fld01, Fld02, Fld03, Fld04, Fld05, Fld06
+
+[Field: Fld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: Fld02]
+  Set: $$StringFindAndReplace:$Name:'"':'""'
+  XMLTAG: F02
+
+[Field: Fld03]
+  Set: $Parent
+  XMLTAG: F03
+
+[Field: Fld04]
+  Set: $NumberingMethod
+  XMLTAG: F04
+
+[Field: Fld05]
+  Set: if $IsDeemedPositive then 1 else 0
+  XMLTAG: F05
+
+[Field: Fld06]
+  Set: if $AffectsStock then 1 else 0
+  XMLTAG: F06
+
+[Collection: MyCollection]
+  Type: VoucherType
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Name, Parent, NumberingMethod, IsDeemedPositive, AffectsStock

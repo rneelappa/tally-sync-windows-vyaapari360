@@ -1,0 +1,56 @@
+[Report: TallyDatabaseLoaderReportGroup]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: GroupForm
+
+[Form: GroupForm]
+  Parts: GroupPart
+
+[Part: GroupPart]
+  Lines: GroupLine
+  Repeat: GroupLine : GroupCollection
+  SCROLLED: Vertical
+
+[Line: GroupLine]
+  Fields: GrpFld01, GrpFld02, GrpFld03, GrpFld04, GrpFld05, GrpFld06, GrpFld07, GrpFld08, GrpFld09
+
+[Field: GrpFld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: GrpFld02]
+  Set: $$StringFindAndReplace:$Name:'"':'""'
+  XMLTAG: F02
+
+[Field: GrpFld03]
+  Set: if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+  XMLTAG: F03
+
+[Field: GrpFld04]
+  Set: $_PrimaryGroup
+  XMLTAG: F04
+
+[Field: GrpFld05]
+  Set: if $IsRevenue then 1 else 0
+  XMLTAG: F05
+
+[Field: GrpFld06]
+  Set: if $IsDeemedPositive then 1 else 0
+  XMLTAG: F06
+
+[Field: GrpFld07]
+  Set: if $IsReserved then 1 else 0
+  XMLTAG: F07
+
+[Field: GrpFld08]
+  Set: if $AffectsGrossProfit then 1 else 0
+  XMLTAG: F08
+
+[Field: GrpFld09]
+  Set: if $$IsEmpty:$SortPosition then "0" else $$String:$SortPosition
+  XMLTAG: F09
+
+[Collection: GroupCollection]
+  Type: Group
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Name, Parent, _PrimaryGroup, IsRevenue, IsDeemedPositive, IsReserved, AffectsGrossProfit, SortPosition

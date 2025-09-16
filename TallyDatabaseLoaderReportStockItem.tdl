@@ -1,0 +1,92 @@
+[Report: TallyDatabaseLoaderReportStockItem]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: StockItemForm
+
+[Form: StockItemForm]
+  Parts: StockItemPart
+
+[Part: StockItemPart]
+  Lines: StockItemLine
+  Repeat: StockItemLine : StockItemCollection
+  SCROLLED: Vertical
+
+[Line: StockItemLine]
+  Fields: StkFld01, StkFld02, StkFld03, StkFld04, StkFld05, StkFld06, StkFld07, StkFld08, StkFld09, StkFld10, StkFld11, StkFld12, StkFld13, StkFld14, StkFld15, StkFld16, StkFld17, StkFld18
+
+[Field: StkFld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: StkFld02]
+  Set: $$StringFindAndReplace:$Name:'"':'""'
+  XMLTAG: F02
+
+[Field: StkFld03]
+  Set: if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+  XMLTAG: F03
+
+[Field: StkFld04]
+  Set: $OnlyAlias
+  XMLTAG: F04
+
+[Field: StkFld05]
+  Set: $Description
+  XMLTAG: F05
+
+[Field: StkFld06]
+  Set: $Narration
+  XMLTAG: F06
+
+[Field: StkFld07]
+  Set: $PartNo
+  XMLTAG: F07
+
+[Field: StkFld08]
+  Set: if $$IsEqual:$BaseUnits:$$SysName:NotApplicable then "" else $BaseUnits
+  XMLTAG: F08
+
+[Field: StkFld09]
+  Set: if $$IsEqual:$AdditionalUnits:$$SysName:NotApplicable then "" else $AdditionalUnits
+  XMLTAG: F09
+
+[Field: StkFld10]
+  Set: if $$IsEmpty:$Conversion then "0" else $$String:$Conversion
+  XMLTAG: F10
+
+[Field: StkFld11]
+  Set: $$StringFindAndReplace:($$Number:$$String:$OpeningBalance):"(-)":"-"
+  XMLTAG: F11
+
+[Field: StkFld12]
+  Set: if $$IsEmpty:$OpeningRate then "0" else $$String:$OpeningRate
+  XMLTAG: F12
+
+[Field: StkFld13]
+  Set: $$StringFindAndReplace:(if $$IsDebit:$OpeningValue then -$$NumValue:$OpeningValue else $$NumValue:$OpeningValue):"(-)":"-"
+  XMLTAG: F13
+
+[Field: StkFld14]
+  Set: $$StringFindAndReplace:($$Number:$$String:$ClosingBalance):"(-)":"-"
+  XMLTAG: F14
+
+[Field: StkFld15]
+  Set: if $$IsEmpty:$ClosingRate then "0" else $$String:$ClosingRate
+  XMLTAG: F15
+
+[Field: StkFld16]
+  Set: $$StringFindAndReplace:(if $$IsDebit:$ClosingValue then -$$NumValue:$ClosingValue else $$NumValue:$ClosingValue):"(-)":"-"
+  XMLTAG: F16
+
+[Field: StkFld17]
+  Set: $CostingMethod
+  XMLTAG: F17
+
+[Field: StkFld18]
+  Set: $InfGSTHSNCode
+  XMLTAG: F18
+
+[Collection: StockItemCollection]
+  Type: StockItem
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: GstDetails, PartNo, Guid, Name, Parent, OnlyAlias, Description, Narration, BaseUnits, AdditionalUnits, Conversion, OpeningBalance, OpeningRate, OpeningValue, ClosingBalance, ClosingRate, ClosingValue, CostingMethod, InfGSTHSNCode

@@ -1,0 +1,36 @@
+[Report: TallyDatabaseLoaderReportGodown]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: GodownForm
+
+[Form: GodownForm]
+  Parts: GodownPart
+
+[Part: GodownPart]
+  Lines: GodownLine
+  Repeat: GodownLine : GodownCollection
+  SCROLLED: Vertical
+
+[Line: GodownLine]
+  Fields: GdnFld01, GdnFld02, GdnFld03, GdnFld04
+
+[Field: GdnFld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: GdnFld02]
+  Set: $$StringFindAndReplace:$Name:'"':'""'
+  XMLTAG: F02
+
+[Field: GdnFld03]
+  Set: $Parent
+  XMLTAG: F03
+
+[Field: GdnFld04]
+  Set: if $$IsEmpty:$Address then "" else $$FullList:Address:$Address
+  XMLTAG: F04
+
+[Collection: GodownCollection]
+  Type: Godown
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: Guid, Name, Parent, Address

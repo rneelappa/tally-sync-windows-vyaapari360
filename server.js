@@ -195,7 +195,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Accounts</ID>
+    <ID>TallyDatabaseLoaderReportLedger</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -213,7 +213,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Groups</ID>
+    <ID>TallyDatabaseLoaderReportGroup</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -230,7 +230,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Stock Items</ID>
+    <ID>TallyDatabaseLoaderReportStockItem</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -247,7 +247,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Voucher Types</ID>
+    <ID>TallyDatabaseLoaderReportVoucherType</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -424,29 +424,68 @@ function voucherToJson(voucher) {
   };
 }
 
-// Extract master data from Tally response
+// Extract master data from Tally response (based on tally-database-loader approach)
 function extractMasterData(parsedData, dataType) {
   const items = [];
+  console.log(`🔍 Extracting ${dataType} master data from parsed data...`);
   
-  const tallyMessages = parsedData.RESPONSE?.BODY?.DATA?.TALLYMESSAGE;
-  if (!tallyMessages) return items;
+  // Handle different response structures for master data
+  let dataSource = null;
+  
+  // Try different possible structures
+  if (parsedData.ENVELOPE?.BODY?.DATA?.TALLYMESSAGE) {
+    dataSource = parsedData.ENVELOPE.BODY.DATA.TALLYMESSAGE;
+    console.log(`📋 Found ${dataType} in ENVELOPE.BODY.DATA.TALLYMESSAGE structure`);
+  } else if (parsedData.RESPONSE?.BODY?.DATA?.TALLYMESSAGE) {
+    dataSource = parsedData.RESPONSE.BODY.DATA.TALLYMESSAGE;
+    console.log(`📋 Found ${dataType} in RESPONSE.BODY.DATA.TALLYMESSAGE structure`);
+  } else if (parsedData.ENVELOPE?.TALLYMESSAGE) {
+    dataSource = parsedData.ENVELOPE.TALLYMESSAGE;
+    console.log(`📋 Found ${dataType} in ENVELOPE.TALLYMESSAGE structure`);
+  } else if (parsedData.TALLYMESSAGE) {
+    dataSource = parsedData.TALLYMESSAGE;
+    console.log(`📋 Found ${dataType} in TALLYMESSAGE structure`);
+  }
+  
+  if (!dataSource) {
+    console.warn(`⚠️ No recognizable ${dataType} data structure found in response`);
+    console.log('Available keys:', Object.keys(parsedData));
+    return items;
+  }
 
-  const messageList = Array.isArray(tallyMessages) ? tallyMessages : [tallyMessages];
+  const messageList = Array.isArray(dataSource) ? dataSource : [dataSource];
 
   messageList.forEach(msg => {
     if (msg[dataType]) {
-      const item = msg[dataType];
-      items.push({
-        GUID: normalize(item.GUID),
-        NAME: normalize(item.NAME),
-        PARENT: normalize(item.PARENT),
-        ...(item.OPENINGBALANCE && { OPENINGBALANCE: parseFloat(normalize(item.OPENINGBALANCE) || 0) }),
-        ...(item.BASEUNITS && { BASEUNITS: normalize(item.BASEUNITS) }),
-        ...(item.ISREVENUE && { ISREVENUE: normalize(item.ISREVENUE) === 'Yes' })
+      const itemArray = Array.isArray(msg[dataType]) ? msg[dataType] : [msg[dataType]];
+      
+      itemArray.forEach(item => {
+        const masterItem = {
+          GUID: normalize(item.GUID),
+          NAME: normalize(item.NAME),
+          PARENT: normalize(item.PARENT) || '',
+          ...(item.OPENINGBALANCE && { OPENINGBALANCE: parseFloat(normalize(item.OPENINGBALANCE) || 0) }),
+          ...(item.CLOSINGBALANCE && { CLOSINGBALANCE: parseFloat(normalize(item.CLOSINGBALANCE) || 0) }),
+          ...(item.BASEUNITS && { BASEUNITS: normalize(item.BASEUNITS) }),
+          ...(item.ISREVENUE && { ISREVENUE: normalize(item.ISREVENUE) === 'Yes' }),
+          ...(item.ISDEEMEDPOSITIVE && { ISDEEMEDPOSITIVE: normalize(item.ISDEEMEDPOSITIVE) === 'Yes' }),
+          ...(item.ISRESERVED && { ISRESERVED: normalize(item.ISRESERVED) === 'Yes' }),
+          ...(item.AFFECTSGROSSPROFIT && { AFFECTSGROSSPROFIT: normalize(item.AFFECTSGROSSPROFIT) === 'Yes' }),
+          ...(item.SORTPOSITION && { SORTPOSITION: parseInt(normalize(item.SORTPOSITION) || 0) }),
+          ...(item.DESCRIPTION && { DESCRIPTION: normalize(item.DESCRIPTION) }),
+          ...(item.ALIAS && { ALIAS: normalize(item.ALIAS) }),
+          ...(item.NARRATION && { NARRATION: normalize(item.NARRATION) }),
+          ...(item.SYMBOL && { SYMBOL: normalize(item.SYMBOL) }),
+          ...(item.FORMALNAME && { FORMALNAME: normalize(item.FORMALNAME) }),
+          ...(item.CONVERSION && { CONVERSION: parseFloat(normalize(item.CONVERSION) || 1) })
+        };
+        
+        items.push(masterItem);
       });
     }
   });
   
+  console.log(`✅ Extracted ${items.length} ${dataType} items`);
   return items;
 }
 

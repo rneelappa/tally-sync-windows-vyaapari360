@@ -1,0 +1,81 @@
+[Report: TallyDatabaseLoaderReportVoucher]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: MyForm
+
+[Form: MyForm]
+  Parts: MyPart01
+
+[Part: MyPart01]
+  Lines: MyLine01
+  Repeat: MyLine01 : MyCollection
+  SCROLLED: Vertical
+
+[Line: MyLine01]
+  Fields: Fld01, Fld02, Fld03, Fld04, Fld05, Fld06, Fld07, Fld08, Fld09, Fld10, Fld11, Fld12, Fld13, Fld14
+
+[Field: Fld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: Fld02]
+  Set: if $$IsEmpty:$Date then $$StrByCharCode:241 else $$PyrlYYYYMMDDFormat:$Date:"-"
+  XMLTAG: F02
+
+[Field: Fld03]
+  Set: $$StringFindAndReplace:$VoucherTypeName:'"':'""'
+  XMLTAG: F03
+
+[Field: Fld04]
+  Set: $$StringFindAndReplace:$VoucherNumber:'"':'""'
+  XMLTAG: F04
+
+[Field: Fld05]
+  Set: $$StringFindAndReplace:$Reference:'"':'""'
+  XMLTAG: F05
+
+[Field: Fld06]
+  Set: if $$IsEmpty:$ReferenceDate then $$StrByCharCode:241 else $$PyrlYYYYMMDDFormat:$ReferenceDate:"-"
+  XMLTAG: F06
+
+[Field: Fld07]
+  Set: $$StringFindAndReplace:$Narration:'"':'""'
+  XMLTAG: F07
+
+[Field: Fld08]
+  Set: $$StringFindAndReplace:$PartyLedgerName:'"':'""'
+  XMLTAG: F08
+
+[Field: Fld09]
+  Set: $$StringFindAndReplace:$PlaceOfSupply:'"':'""'
+  XMLTAG: F09
+
+[Field: Fld10]
+  Set: if $IsInvoice then 1 else 0
+  XMLTAG: F10
+
+[Field: Fld11]
+  Set: if $$IsAccountingVch:$VoucherTypeName then 1 else 0
+  XMLTAG: F11
+
+[Field: Fld12]
+  Set: if $$IsInventoryVch:$VoucherTypeName then 1 else 0
+  XMLTAG: F12
+
+[Field: Fld13]
+  Set: if $$IsOrderVch:$VoucherTypeName then 1 else 0
+  XMLTAG: F13
+
+[Field: Fld14]
+  Set: if $$IsEmpty:$AlterId then "0" else $$String:$AlterId
+  XMLTAG: F14
+
+[System: Formulae]
+  VyaNotCancelled: (NOT $IsCancelled) AND (NOT $IsOptional)
+  VyaDateBetween: ($Date >= $$Date:##SVFROMDATE) AND ($Date <= $$Date:##SVTODATE)
+
+[Collection: MyCollection]
+  Type: Voucher
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: AlterId, Narration, PartyLedgerName, PlaceOfSupply, Reference, ReferenceDate, Guid, Date, VoucherTypeName, VoucherNumber, IsInvoice, IsCancelled, IsOptional
+  Filters: VyaNotCancelled, VyaDateBetween

@@ -1,0 +1,81 @@
+[Report: TallyDatabaseLoaderReportVoucher]
+  Variable: SVFROMDATE, SVTODATE, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Forms: VoucherForm
+
+[Form: VoucherForm]
+  Parts: VoucherPart
+
+[Part: VoucherPart]
+  Lines: VoucherLine
+  Repeat: VoucherLine : VoucherCollection
+  SCROLLED: Vertical
+
+[Line: VoucherLine]
+  Fields: VchFld01, VchFld02, VchFld03, VchFld04, VchFld05, VchFld06, VchFld07, VchFld08, VchFld09, VchFld10, VchFld11, VchFld12, VchFld13, VchFld14
+
+[Field: VchFld01]
+  Set: $Guid
+  XMLTAG: F01
+
+[Field: VchFld02]
+  Set: if $$IsEmpty:$Date then $$StrByCharCode:241 else $$PyrlYYYYMMDDFormat:$Date:"-"
+  XMLTAG: F02
+
+[Field: VchFld03]
+  Set: $$StringFindAndReplace:$VoucherTypeName:'"':'""'
+  XMLTAG: F03
+
+[Field: VchFld04]
+  Set: $$StringFindAndReplace:$VoucherNumber:'"':'""'
+  XMLTAG: F04
+
+[Field: VchFld05]
+  Set: $$StringFindAndReplace:$Reference:'"':'""'
+  XMLTAG: F05
+
+[Field: VchFld06]
+  Set: if $$IsEmpty:$ReferenceDate then $$StrByCharCode:241 else $$PyrlYYYYMMDDFormat:$ReferenceDate:"-"
+  XMLTAG: F06
+
+[Field: VchFld07]
+  Set: $$StringFindAndReplace:$Narration:'"':'""'
+  XMLTAG: F07
+
+[Field: VchFld08]
+  Set: $$StringFindAndReplace:$PartyLedgerName:'"':'""'
+  XMLTAG: F08
+
+[Field: VchFld09]
+  Set: $$StringFindAndReplace:$PlaceOfSupply:'"':'""'
+  XMLTAG: F09
+
+[Field: VchFld10]
+  Set: if $IsInvoice then 1 else 0
+  XMLTAG: F10
+
+[Field: VchFld11]
+  Set: if $$IsAccountingVch:$VoucherTypeName then 1 else 0
+  XMLTAG: F11
+
+[Field: VchFld12]
+  Set: if $$IsInventoryVch:$VoucherTypeName then 1 else 0
+  XMLTAG: F12
+
+[Field: VchFld13]
+  Set: if $$IsOrderVch:$VoucherTypeName then 1 else 0
+  XMLTAG: F13
+
+[Field: VchFld14]
+  Set: if $$IsEmpty:$AlterId then "0" else $$String:$AlterId
+  XMLTAG: F14
+
+[System: Formulae]
+  VyaNotCancelled: (NOT $IsCancelled) AND (NOT $IsOptional)
+  VyaDateBetween: ($Date >= $$Date:##SVFROMDATE) AND ($Date <= $$Date:##SVTODATE)
+
+[Collection: VoucherCollection]
+  Type: Voucher
+  Child Of: Company : ##SVCURRENTCOMPANY
+  Belongs To: Yes
+  Fetch: AlterId, Narration, PartyLedgerName, PlaceOfSupply, Reference, ReferenceDate, Guid, Date, VoucherTypeName, VoucherNumber, IsInvoice, IsCancelled, IsOptional
+  Filters: VyaNotCancelled, VyaDateBetween
