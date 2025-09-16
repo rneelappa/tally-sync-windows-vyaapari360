@@ -79,8 +79,8 @@ const masterDataStorage = {
 // Cache for Tally URLs to avoid repeated Supabase calls
 const tallyUrlCache = new Map();
 
-// Fetch Tally URL from Supabase for a specific division
-async function getTallyUrl(companyId, divisionId) {
+// Fetch Tally URL and company name from Supabase for a specific division
+async function getTallyConfig(companyId, divisionId) {
   const cacheKey = `${companyId}/${divisionId}`;
   
   // Check cache first
@@ -88,47 +88,55 @@ async function getTallyUrl(companyId, divisionId) {
     const cached = tallyUrlCache.get(cacheKey);
     // Cache for 5 minutes
     if (Date.now() - cached.timestamp < 5 * 60 * 1000) {
-      return cached.url;
+      return cached;
     }
   }
   
   try {
-    console.log(`🔍 Fetching Tally URL for ${companyId}/${divisionId} from Supabase...`);
+    console.log(`🔍 Fetching Tally config for ${companyId}/${divisionId} from Supabase...`);
     
     const { data, error } = await supabase
       .from('divisions')
-      .select('tally_url')
+      .select('tally_url, company_name')
       .eq('company_id', companyId)
       .eq('id', divisionId)
       .single();
     
     if (error) {
-      console.error('❌ Error fetching Tally URL:', error.message);
-      throw new Error(`Failed to fetch Tally URL: ${error.message}`);
+      console.error('❌ Error fetching Tally config:', error.message);
+      throw new Error(`Failed to fetch Tally config: ${error.message}`);
     }
     
-    if (!data || !data.tally_url) {
-      throw new Error(`No Tally URL found for ${companyId}/${divisionId}`);
+    if (!data || !data.tally_url || !data.company_name) {
+      throw new Error(`No Tally config found for ${companyId}/${divisionId}`);
     }
     
-    // Cache the URL
-    tallyUrlCache.set(cacheKey, {
-      url: data.tally_url,
+    // Cache the config
+    const config = {
+      tallyUrl: data.tally_url,
+      companyName: data.company_name,
       timestamp: Date.now()
-    });
+    };
+    tallyUrlCache.set(cacheKey, config);
     
-    console.log(`✅ Found Tally URL: ${data.tally_url}`);
-    return data.tally_url;
+    console.log(`✅ Found Tally config: ${data.tally_url}, ${data.company_name}`);
+    return config;
     
   } catch (error) {
-    console.error('❌ Error getting Tally URL:', error.message);
+    console.error('❌ Error getting Tally config:', error.message);
     throw error;
   }
 }
 
+// Legacy wrapper for backward compatibility
+async function getTallyUrl(companyId, divisionId) {
+  const config = await getTallyConfig(companyId, divisionId);
+  return config.tallyUrl;
+}
+
 // Helper function to create proper Tally XML requests
-function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') {
-  console.log(`🔧 Creating Tally request: ${reportType}, from: ${fromDate}, to: ${toDate}`);
+function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', companyName = null) {
+  console.log(`🔧 Creating Tally request: ${reportType}, from: ${fromDate}, to: ${toDate}, company: ${companyName}`);
   
   // Default to current month if no dates provided
   if (!fromDate || !toDate) {
@@ -158,13 +166,13 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVFROMDATE>${fromDate}</SVFROMDATE>
         <SVTODATE>${toDate}</SVTODATE>
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
 </ENVELOPE>`;
   } else if (reportType === 'DayBook') {
-    // Use built-in Day Book
+    // Use built-in Day Book - match exact format of working curl
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
   <HEADER>
@@ -176,10 +184,10 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
   <BODY>
     <DESC>
       <STATICVARIABLES>
-        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVFROMDATE>${fromDate}</SVFROMDATE>
         <SVTODATE>${toDate}</SVTODATE>
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -197,7 +205,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -215,7 +223,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -233,7 +241,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -251,7 +259,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -271,7 +279,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         ${fromDate && toDate ? `<SVFROMDATE>${fromDate}</SVFROMDATE><SVTODATE>${toDate}</SVTODATE>` : ''}
-        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
+        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -287,12 +295,12 @@ async function fetchTallyData(companyId, divisionId, reportType = 'DayBook', fro
   try {
     console.log(`🔄 Fetching ${reportType} from Tally for ${companyId}/${divisionId}...`);
     
-    // Get Tally URL from Supabase
-    const tallyUrl = await getTallyUrl(companyId, divisionId);
+    // Get Tally config from Supabase
+    const config = await getTallyConfig(companyId, divisionId);
     
-    const requestXml = createTallyRequest(reportType, fromDate, toDate);
+    const requestXml = createTallyRequest(reportType, fromDate, toDate, config.companyName);
     
-    const response = await axios.post(tallyUrl, requestXml, {
+    const response = await axios.post(config.tallyUrl, requestXml, {
       headers: {
         'Content-Type': 'application/xml',
         'ngrok-skip-browser-warning': 'true'
@@ -827,11 +835,11 @@ app.post('/api/v1/tallysync/raw/:companyId/:divisionId', async (req, res) => {
     const { companyId, divisionId } = req.params;
     const { id = 'Day Book', fromDate = '20250610', toDate = '20250610', includeExportFormat = true, includeCompany = true } = req.body || {};
 
-    const tallyUrl = await getTallyUrl(companyId, divisionId);
+    const config = await getTallyConfig(companyId, divisionId);
 
-    const xml = `<?xml version="1.0" encoding="utf-8"?>\n<ENVELOPE>\n  <HEADER>\n    <VERSION>1</VERSION>\n    <TALLYREQUEST>Export</TALLYREQUEST>\n    <TYPE>Data</TYPE>\n    <ID>${id}</ID>\n  </HEADER>\n  <BODY>\n    <DESC>\n      <STATICVARIABLES>\n        ${includeExportFormat ? '<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>' : ''}\n        <SVFROMDATE>${fromDate}</SVFROMDATE>\n        <SVTODATE>${toDate}</SVTODATE>\n        ${includeCompany ? '<SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>' : ''}\n      </STATICVARIABLES>\n    </DESC>\n  </BODY>\n</ENVELOPE>`;
+    const xml = `<?xml version="1.0" encoding="utf-8"?>\n<ENVELOPE>\n  <HEADER>\n    <VERSION>1</VERSION>\n    <TALLYREQUEST>Export</TALLYREQUEST>\n    <TYPE>Data</TYPE>\n    <ID>${id}</ID>\n  </HEADER>\n  <BODY>\n    <DESC>\n      <STATICVARIABLES>\n        ${includeExportFormat ? '<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>' : ''}\n        <SVFROMDATE>${fromDate}</SVFROMDATE>\n        <SVTODATE>${toDate}</SVTODATE>\n        ${includeCompany ? `<SVCURRENTCOMPANY>${config.companyName}</SVCURRENTCOMPANY>` : ''}\n      </STATICVARIABLES>\n    </DESC>\n  </BODY>\n</ENVELOPE>`;
 
-    const response = await axios.post(tallyUrl, xml, {
+    const response = await axios.post(config.tallyUrl, xml, {
       headers: { 'Content-Type': 'application/xml', 'ngrok-skip-browser-warning': 'true' },
       timeout: 15000
     });
@@ -839,7 +847,7 @@ app.post('/api/v1/tallysync/raw/:companyId/:divisionId', async (req, res) => {
     res.json({
       success: true,
       data: {
-        tallyUrl,
+        tallyUrl: config.tallyUrl,
         requestId: id,
         fromDate,
         toDate,
@@ -1821,7 +1829,7 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
         debug: {
           tallyUrl,
           xmlRequestLength: xmlRequest.length,
-          xmlRequestPreview: xmlRequest.substring(0, 500),
+          xmlRequestFull: xmlRequest,
           responseLength: response.data.length,
           responsePreview: response.data.substring(0, 500),
           parsedDataKeys: Object.keys(parsedData),
@@ -1900,6 +1908,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌍 Environment: ${NODE_ENV}`);
   console.log(`🔗 Tally URLs: Fetched dynamically from Supabase per division`);
   console.log(`✅ Ledger entries parsing: FIXED - Using voucher['LEDGERENTRIES.LIST']`);
+  console.log(`🧪 Raw endpoint enabled: POST /api/v1/tallysync/raw/:companyId/:divisionId`);
 });
 
 module.exports = app;
