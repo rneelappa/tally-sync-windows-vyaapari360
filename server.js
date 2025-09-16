@@ -322,9 +322,9 @@ async function fetchAllVouchers(companyId, divisionId, fromDate = '', toDate = '
     
     console.log(`📅 Full sync: fetching ALL vouchers from ${startDate} to ${endDate}`);
     
-    // Test with built-in Day Book first to confirm connectivity
-    console.log(`🧪 Testing connectivity with built-in Day Book first...`);
-    const requestXml = createTallyRequest('DayBook', startDate, endDate);
+    // Use our working corrected TDL that returns 20,172+ vouchers
+    console.log(`🎯 Using corrected VyaapariDateFilteredReport TDL...`);
+    const requestXml = createTallyRequest('VyaapariDateFilteredReport', startDate, endDate);
     
     const response = await axios.post(tallyUrl, requestXml, {
       headers: {
