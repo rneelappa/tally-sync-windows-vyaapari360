@@ -70,7 +70,7 @@ async function getTallyUrl(companyId, divisionId) {
     console.log(`🔍 Fetching Tally URL for ${companyId}/${divisionId} from Supabase...`);
     
     const { data, error } = await supabase
-      .from('vyaapari_divisions')
+      .from('divisions')
       .select('tally_url')
       .eq('company_id', companyId)
       .eq('division_id', divisionId)
