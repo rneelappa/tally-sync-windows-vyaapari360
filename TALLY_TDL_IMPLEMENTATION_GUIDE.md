@@ -8,7 +8,7 @@ The issue with our Tally integration is that **standard Tally reports ignore ext
 
 ### Step 1: Load the Custom TDL Report into Tally
 
-1. **Save the TDL File**: The file `VyaapariDateFilteredReport.tdl` contains our custom report definition
+1. **Save the TDL File**: The file `VyaapariDateFilteredReport.tdl` contains our corrected custom report definition with inline filter formula
 2. **Open Tally Prime**: Navigate to your Tally installation
 3. **Access TDL Management**: 
    - Press `F1` (Help) → `TDL & Add-On`

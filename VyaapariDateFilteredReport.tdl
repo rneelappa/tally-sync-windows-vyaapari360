@@ -55,8 +55,4 @@
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
   Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, IsInvoice, IsAccounting, IsInventory, IsCancelled, IsOptional, Amount
-  Filter: VyaapariDateFilter
-
-[System: VyaapariDateFilter]
-  Type: Formulae
-  Formula: NOT $IsCancelled AND NOT $IsOptional AND $$IsGTE:$Date:##SVFROMDATE AND $$IsLTE:$Date:##SVTODATE
+  Filter: NOT $IsCancelled AND NOT $IsOptional AND $$IsGTE:$Date:##SVFROMDATE AND $$IsLTE:$Date:##SVTODATE
