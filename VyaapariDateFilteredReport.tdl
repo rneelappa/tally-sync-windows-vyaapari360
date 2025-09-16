@@ -70,9 +70,4 @@
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
   Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount, IsCancelled, IsOptional
-  Filter: NOT $IsCancelled AND NOT $IsOptional
-
-; Lightweight wrapper over Day Book that honors SVFromDate/SVToDate and company
-[Report: VyaapariDayBook]
-  Use: Day Book
-  Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT
+  Filter: NOT $IsCancelled AND NOT $IsOptional AND $Date >= ##SVFROMDATE AND $Date <= ##SVTODATE

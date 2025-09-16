@@ -54,13 +54,6 @@ function normalize(value) {
   return value.replace(/[\r\n\t]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-// Helper function to extract field values from custom TDL response
-function extractFieldValue(text, fieldName) {
-  const regex = new RegExp(`<${fieldName}>(.*?)</${fieldName}>`, 'i');
-  const match = text.match(regex);
-  return match ? normalize(match[1]) : '';
-}
-
 // In-memory XML storage (for Railway - consider Redis for production)
 const xmlStorage = new Map();
 
@@ -79,8 +72,8 @@ const masterDataStorage = {
 // Cache for Tally URLs to avoid repeated Supabase calls
 const tallyUrlCache = new Map();
 
-// Fetch Tally URL and company name from Supabase for a specific division
-async function getTallyConfig(companyId, divisionId) {
+// Fetch Tally URL from Supabase for a specific division
+async function getTallyUrl(companyId, divisionId) {
   const cacheKey = `${companyId}/${divisionId}`;
   
   // Check cache first
@@ -88,55 +81,47 @@ async function getTallyConfig(companyId, divisionId) {
     const cached = tallyUrlCache.get(cacheKey);
     // Cache for 5 minutes
     if (Date.now() - cached.timestamp < 5 * 60 * 1000) {
-      return cached;
+      return cached.url;
     }
   }
   
   try {
-    console.log(`🔍 Fetching Tally config for ${companyId}/${divisionId} from Supabase...`);
+    console.log(`🔍 Fetching Tally URL for ${companyId}/${divisionId} from Supabase...`);
     
     const { data, error } = await supabase
       .from('divisions')
-      .select('tally_url, company_name')
+      .select('tally_url')
       .eq('company_id', companyId)
       .eq('id', divisionId)
       .single();
     
     if (error) {
-      console.error('❌ Error fetching Tally config:', error.message);
-      throw new Error(`Failed to fetch Tally config: ${error.message}`);
+      console.error('❌ Error fetching Tally URL:', error.message);
+      throw new Error(`Failed to fetch Tally URL: ${error.message}`);
     }
     
-    if (!data || !data.tally_url || !data.company_name) {
-      throw new Error(`No Tally config found for ${companyId}/${divisionId}`);
+    if (!data || !data.tally_url) {
+      throw new Error(`No Tally URL found for ${companyId}/${divisionId}`);
     }
     
-    // Cache the config
-    const config = {
-      tallyUrl: data.tally_url,
-      companyName: data.company_name,
+    // Cache the URL
+    tallyUrlCache.set(cacheKey, {
+      url: data.tally_url,
       timestamp: Date.now()
-    };
-    tallyUrlCache.set(cacheKey, config);
+    });
     
-    console.log(`✅ Found Tally config: ${data.tally_url}, ${data.company_name}`);
-    return config;
+    console.log(`✅ Found Tally URL: ${data.tally_url}`);
+    return data.tally_url;
     
   } catch (error) {
-    console.error('❌ Error getting Tally config:', error.message);
+    console.error('❌ Error getting Tally URL:', error.message);
     throw error;
   }
 }
 
-// Legacy wrapper for backward compatibility
-async function getTallyUrl(companyId, divisionId) {
-  const config = await getTallyConfig(companyId, divisionId);
-  return config.tallyUrl;
-}
-
 // Helper function to create proper Tally XML requests
-function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', companyName = null) {
-  console.log(`🔧 Creating Tally request: ${reportType}, from: ${fromDate}, to: ${toDate}, company: ${companyName}`);
+function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') {
+  console.log(`🔧 Creating Tally request: ${reportType}, from: ${fromDate}, to: ${toDate}`);
   
   // Default to current month if no dates provided
   if (!fromDate || !toDate) {
@@ -150,7 +135,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
 
   let requestXml;
 
-  if (reportType === 'Vouchers') {
+  if (reportType === 'Vouchers' || reportType === 'DayBook') {
     // Use custom date-filtered TDL report (requires VyaapariDateFilteredReport.tdl to be loaded in Tally)
     requestXml = `<?xml version="1.0" encoding="utf-8"?>
 <ENVELOPE>
@@ -166,28 +151,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         <SVFROMDATE>${fromDate}</SVFROMDATE>
         <SVTODATE>${toDate}</SVTODATE>
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
-      </STATICVARIABLES>
-    </DESC>
-  </BODY>
-</ENVELOPE>`;
-  } else if (reportType === 'DayBook') {
-    // Use custom TDL report for proper date filtering (same as Vouchers)
-    requestXml = `<?xml version="1.0" encoding="utf-8"?>
-<ENVELOPE>
-  <HEADER>
-    <VERSION>1</VERSION>
-    <TALLYREQUEST>Export</TALLYREQUEST>
-    <TYPE>Data</TYPE>
-    <ID>VyaapariDateFilteredReport</ID>
-  </HEADER>
-  <BODY>
-    <DESC>
-      <STATICVARIABLES>
-        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVFROMDATE>${fromDate}</SVFROMDATE>
-        <SVTODATE>${toDate}</SVTODATE>
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -205,7 +169,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
+        <SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -217,13 +181,12 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>Group</ID>
+    <ID>List of Groups</ID>
   </HEADER>
   <BODY>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -235,13 +198,12 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>Stock Item</ID>
+    <ID>List of Stock Items</ID>
   </HEADER>
   <BODY>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -253,13 +215,12 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>Voucher Type</ID>
+    <ID>List of Voucher Types</ID>
   </HEADER>
   <BODY>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -279,7 +240,6 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '', 
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
         ${fromDate && toDate ? `<SVFROMDATE>${fromDate}</SVFROMDATE><SVTODATE>${toDate}</SVTODATE>` : ''}
-        ${companyName ? `<SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>` : ''}
       </STATICVARIABLES>
     </DESC>
   </BODY>
@@ -295,12 +255,12 @@ async function fetchTallyData(companyId, divisionId, reportType = 'DayBook', fro
   try {
     console.log(`🔄 Fetching ${reportType} from Tally for ${companyId}/${divisionId}...`);
     
-    // Get Tally config from Supabase
-    const config = await getTallyConfig(companyId, divisionId);
+    // Get Tally URL from Supabase
+    const tallyUrl = await getTallyUrl(companyId, divisionId);
     
-    const requestXml = createTallyRequest(reportType, fromDate, toDate, config.companyName);
+    const requestXml = createTallyRequest(reportType, fromDate, toDate);
     
-    const response = await axios.post(config.tallyUrl, requestXml, {
+    const response = await axios.post(tallyUrl, requestXml, {
       headers: {
         'Content-Type': 'application/xml',
         'ngrok-skip-browser-warning': 'true'
@@ -414,12 +374,6 @@ function extractVouchers(parsedData) {
   } else if (parsedData.RESPONSE?.BODY?.DATA) {
     dataSource = parsedData.RESPONSE.BODY.DATA;
     console.log('📋 Found data in RESPONSE.BODY.DATA structure');
-  } else if (parsedData.ENVELOPE && (parsedData.ENVELOPE.FLDGUID || typeof parsedData.ENVELOPE === 'string')) {
-    dataSource = { CUSTOMTDL: parsedData.ENVELOPE };
-    console.log('📋 Found data in custom TDL ENVELOPE structure');
-  } else if (parsedData.FLDGUID) {
-    dataSource = { CUSTOMTDL: parsedData };
-    console.log('📋 Found data in direct custom TDL structure');
   } else if (parsedData.DAYBOOK) {
     dataSource = { DAYBOOK: parsedData.DAYBOOK };
     console.log('📋 Found data in DAYBOOK structure');
@@ -435,65 +389,6 @@ function extractVouchers(parsedData) {
   }
   
   // Process custom TDL format (VyaapariDateFilteredReport)
-  if (dataSource.CUSTOMTDL) {
-    console.log('📊 Processing custom TDL format vouchers...');
-    const tdlData = dataSource.CUSTOMTDL;
-    
-    // Handle direct field format
-    if (tdlData.FLDGUID) {
-      vouchers.push({
-        GUID: normalize(tdlData.FLDGUID),
-        VOUCHERNUMBER: normalize(tdlData.FLDVOUCHERNUMBER),
-        VOUCHERTYPENAME: normalize(tdlData.FLDVOUCHERTYPE),
-        DATE: normalize(tdlData.FLDDATE),
-        PARTYLEDGERNAME: normalize(tdlData.FLDPARTYNAME),
-        NARRATION: normalize(tdlData.FLDNARRATION),
-        AMOUNT: parseFloat(normalize(tdlData.FLDAMOUNT) || 0),
-        ISINVOICE: normalize(tdlData.FLDISINVOICE) === '1',
-        ISACCOUNTING: normalize(tdlData.FLDISACCOUNTING) === '1',
-        ISINVENTORY: normalize(tdlData.FLDISINVENTORY) === '1',
-        entries: [],
-        inventoryEntries: []
-      });
-    }
-    
-    // Handle string format response
-    if (typeof tdlData === 'string' && tdlData.includes('<FLDGUID>')) {
-      console.log('📋 Parsing string format TDL response...');
-      
-      // Split by FLDGUID to get individual vouchers
-      const voucherSections = tdlData.split('<FLDGUID>').slice(1); // Remove first empty element
-      
-      voucherSections.forEach(section => {
-        const voucherText = '<FLDGUID>' + section;
-        
-        const voucher = {
-          GUID: extractFieldValue(voucherText, 'FLDGUID'),
-          VOUCHERNUMBER: extractFieldValue(voucherText, 'FLDVOUCHERNUMBER'),
-          VOUCHERTYPENAME: extractFieldValue(voucherText, 'FLDVOUCHERTYPE'),
-          DATE: extractFieldValue(voucherText, 'FLDDATE'),
-          PARTYLEDGERNAME: extractFieldValue(voucherText, 'FLDPARTYNAME'),
-          NARRATION: extractFieldValue(voucherText, 'FLDNARRATION'),
-          AMOUNT: parseFloat(extractFieldValue(voucherText, 'FLDAMOUNT') || 0),
-          ISINVOICE: extractFieldValue(voucherText, 'FLDISINVOICE') === '1',
-          ISACCOUNTING: extractFieldValue(voucherText, 'FLDISACCOUNTING') === '1',
-          ISINVENTORY: extractFieldValue(voucherText, 'FLDISINVENTORY') === '1',
-          entries: [],
-          inventoryEntries: []
-        };
-        
-        // Only add if we have a valid GUID
-        if (voucher.GUID) {
-          vouchers.push(voucher);
-        }
-      });
-    }
-    
-    console.log(`✅ Extracted ${vouchers.length} vouchers from custom TDL format`);
-    return vouchers;
-  }
-  
-  // Process custom TDL format (VyaapariDateFilteredReport) - Legacy
   if (dataSource.FLDGUID || dataSource.ENVELOPE) {
     console.log('📊 Processing custom TDL format vouchers...');
     
@@ -535,16 +430,16 @@ function extractVouchers(parsedData) {
               responseText.substring(startPos);
             
             const voucher = {
-              GUID: extractFieldValue(voucherText, 'FLDGUID'),
-              VOUCHERNUMBER: extractFieldValue(voucherText, 'FLDVOUCHERNUMBER'),
-              VOUCHERTYPENAME: extractFieldValue(voucherText, 'FLDVOUCHERTYPE'),
-              DATE: extractFieldValue(voucherText, 'FLDDATE'),
-              PARTYLEDGERNAME: extractFieldValue(voucherText, 'FLDPARTYNAME'),
-              NARRATION: extractFieldValue(voucherText, 'FLDNARRATION'),
-              AMOUNT: parseFloat(extractFieldValue(voucherText, 'FLDAMOUNT') || 0),
-              ISINVOICE: extractFieldValue(voucherText, 'FLDISINVOICE') === '1',
-              ISACCOUNTING: extractFieldValue(voucherText, 'FLDISACCOUNTING') === '1',
-              ISINVENTORY: extractFieldValue(voucherText, 'FLDISINVENTORY') === '1',
+              GUID: this.extractFieldValue(voucherText, 'FLDGUID'),
+              VOUCHERNUMBER: this.extractFieldValue(voucherText, 'FLDVOUCHERNUMBER'),
+              VOUCHERTYPENAME: this.extractFieldValue(voucherText, 'FLDVOUCHERTYPE'),
+              DATE: this.extractFieldValue(voucherText, 'FLDDATE'),
+              PARTYLEDGERNAME: this.extractFieldValue(voucherText, 'FLDPARTYNAME'),
+              NARRATION: this.extractFieldValue(voucherText, 'FLDNARRATION'),
+              AMOUNT: parseFloat(this.extractFieldValue(voucherText, 'FLDAMOUNT') || 0),
+              ISINVOICE: this.extractFieldValue(voucherText, 'FLDISINVOICE') === '1',
+              ISACCOUNTING: this.extractFieldValue(voucherText, 'FLDISACCOUNTING') === '1',
+              ISINVENTORY: this.extractFieldValue(voucherText, 'FLDISINVENTORY') === '1',
               entries: [],
               inventoryEntries: []
             };
@@ -825,45 +720,6 @@ app.get('/api/v1/vouchers/:companyId/:divisionId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
-    });
-  }
-});
-
-// Raw: Build XML and return raw Tally response (no parsing)
-app.post('/api/v1/tallysync/raw/:companyId/:divisionId', async (req, res) => {
-  try {
-    const { companyId, divisionId } = req.params;
-    const { id = 'Day Book', fromDate = '20250610', toDate = '20250610', includeExportFormat = true, includeCompany = true } = req.body || {};
-
-    const config = await getTallyConfig(companyId, divisionId);
-
-    const xml = `<?xml version="1.0" encoding="utf-8"?>\n<ENVELOPE>\n  <HEADER>\n    <VERSION>1</VERSION>\n    <TALLYREQUEST>Export</TALLYREQUEST>\n    <TYPE>Data</TYPE>\n    <ID>${id}</ID>\n  </HEADER>\n  <BODY>\n    <DESC>\n      <STATICVARIABLES>\n        ${includeExportFormat ? '<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>' : ''}\n        <SVFROMDATE>${fromDate}</SVFROMDATE>\n        <SVTODATE>${toDate}</SVTODATE>\n        ${includeCompany ? `<SVCURRENTCOMPANY>${config.companyName}</SVCURRENTCOMPANY>` : ''}\n      </STATICVARIABLES>\n    </DESC>\n  </BODY>\n</ENVELOPE>`;
-
-    const response = await axios.post(config.tallyUrl, xml, {
-      headers: { 'Content-Type': 'application/xml', 'ngrok-skip-browser-warning': 'true' },
-      timeout: 15000
-    });
-
-    res.json({
-      success: true,
-      data: {
-        tallyUrl: config.tallyUrl,
-        requestId: id,
-        fromDate,
-        toDate,
-        includeExportFormat,
-        includeCompany,
-        xmlSentPreview: xml.substring(0, 500),
-        rawResponsePreview: String(response.data).substring(0, 1000)
-      }
-    });
-  } catch (error) {
-    res.status(200).json({
-      success: false,
-      error: error.message,
-      data: {
-        xmlError: true
-      }
     });
   }
 });
@@ -1708,14 +1564,14 @@ app.post('/api/v1/tallysync/sync/:companyId/:divisionId', async (req, res) => {
     
     console.log(`🔄 TallySync: Syncing ALL vouchers for ${companyId}/${divisionId} (no date filtering)`);
     
-    // Fetch data from Tally - try Day Book first for robustness
+    // Fetch data from Tally - try Vouchers Collection first for detailed data
     let xmlData;
     try {
-      console.log('🔄 TallySync: Trying Day Book first...');
-      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
-    } catch (error) {
-      console.log('⚠️ TallySync: Day Book failed, falling back to Vouchers collection...');
+      console.log('🔄 TallySync: Trying Vouchers Collection for detailed data...');
       xmlData = await fetchTallyData(companyId, divisionId, 'Vouchers', '', '');
+    } catch (error) {
+      console.log('⚠️ TallySync: Vouchers Collection failed, falling back to DayBook...');
+      xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
     }
     const parsedData = await parseTallyResponse(xmlData);
     const vouchers = extractVouchers(parsedData);
@@ -1797,8 +1653,8 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
       });
     }
     
-    // Generate XML request (built-in Day Book) for a single day to simplify testing
-    const xmlRequest = createTallyRequest('DayBook', '20250610', '20250610');
+    // Generate XML request
+    const xmlRequest = createTallyRequest('DayBook', '20250901', '20250930');
     console.log(`📤 Debug: Generated XML request (length: ${xmlRequest.length})`);
     
     // Test the actual HTTP request to Tally
@@ -1829,7 +1685,6 @@ app.get('/api/v1/tallysync/debug/:companyId/:divisionId', async (req, res) => {
         debug: {
           tallyUrl,
           xmlRequestLength: xmlRequest.length,
-          xmlRequestFull: xmlRequest,
           responseLength: response.data.length,
           responsePreview: response.data.substring(0, 500),
           parsedDataKeys: Object.keys(parsedData),
@@ -1908,7 +1763,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌍 Environment: ${NODE_ENV}`);
   console.log(`🔗 Tally URLs: Fetched dynamically from Supabase per division`);
   console.log(`✅ Ledger entries parsing: FIXED - Using voucher['LEDGERENTRIES.LIST']`);
-  console.log(`🧪 Raw endpoint enabled: POST /api/v1/tallysync/raw/:companyId/:divisionId`);
 });
 
 module.exports = app;
