@@ -209,7 +209,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Groups</ID>
+    <ID>Group</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -227,7 +227,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Stock Items</ID>
+    <ID>Stock Item</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -245,7 +245,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Voucher Types</ID>
+    <ID>Voucher Type</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -817,6 +817,45 @@ app.get('/api/v1/vouchers/:companyId/:divisionId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Raw: Build XML and return raw Tally response (no parsing)
+app.post('/api/v1/tallysync/raw/:companyId/:divisionId', async (req, res) => {
+  try {
+    const { companyId, divisionId } = req.params;
+    const { id = 'Day Book', fromDate = '20250610', toDate = '20250610', includeExportFormat = true, includeCompany = true } = req.body || {};
+
+    const tallyUrl = await getTallyUrl(companyId, divisionId);
+
+    const xml = `<?xml version="1.0" encoding="utf-8"?>\n<ENVELOPE>\n  <HEADER>\n    <VERSION>1</VERSION>\n    <TALLYREQUEST>Export</TALLYREQUEST>\n    <TYPE>Data</TYPE>\n    <ID>${id}</ID>\n  </HEADER>\n  <BODY>\n    <DESC>\n      <STATICVARIABLES>\n        ${includeExportFormat ? '<SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>' : ''}\n        <SVFROMDATE>${fromDate}</SVFROMDATE>\n        <SVTODATE>${toDate}</SVTODATE>\n        ${includeCompany ? '<SVCURRENTCOMPANY>SKM IMPEX-CHENNAI-(24-25)</SVCURRENTCOMPANY>' : ''}\n      </STATICVARIABLES>\n    </DESC>\n  </BODY>\n</ENVELOPE>`;
+
+    const response = await axios.post(tallyUrl, xml, {
+      headers: { 'Content-Type': 'application/xml', 'ngrok-skip-browser-warning': 'true' },
+      timeout: 15000
+    });
+
+    res.json({
+      success: true,
+      data: {
+        tallyUrl,
+        requestId: id,
+        fromDate,
+        toDate,
+        includeExportFormat,
+        includeCompany,
+        xmlSentPreview: xml.substring(0, 500),
+        rawResponsePreview: String(response.data).substring(0, 1000)
+      }
+    });
+  } catch (error) {
+    res.status(200).json({
+      success: false,
+      error: error.message,
+      data: {
+        xmlError: true
+      }
     });
   }
 });
