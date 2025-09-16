@@ -1,3 +1,7 @@
+[System: Formulae]
+  VyaNotCancelled: (NOT $IsCancelled) AND (NOT $IsOptional)
+  VyaDateBetween: ($Date >= $$Date:##SVFromDate) AND ($Date <= $$Date:##SVToDate)
+
 [Report: VyaapariDateFilteredReport]
   Variable: SVFromDate, SVToDate, SVCURRENTCOMPANY, SVEXPORTFORMAT
   Forms: VyaForm
@@ -70,4 +74,4 @@
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
   Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount, IsCancelled, IsOptional
-  Filter: NOT $IsCancelled AND NOT $IsOptional AND $Date >= ##SVFROMDATE AND $Date <= ##SVTODATE
+  Filters: VyaNotCancelled, VyaDateBetween
