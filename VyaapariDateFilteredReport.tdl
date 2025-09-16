@@ -70,11 +70,11 @@
 [Collection: VyaapariVoucherCollection]
   Type: Voucher
   Fetch: Guid, Date, VoucherTypeName, VoucherNumber, Reference, ReferenceDate, Narration, PartyLedgerName, PlaceOfSupply, Amount, IsCancelled, IsOptional
-  Filter: VyaNotCancelled, VyaDateBetween
+  Filter: VyaNotCancelled AND VyaDateBetween
 
 [System: Formulae]
   VyaNotCancelled: NOT $IsCancelled AND NOT $IsOptional
-  VyaDateBetween:  $Date >= ##SVFromDate AND $Date <= ##SVToDate
+  VyaDateBetween:  $$IsGTE:$Date:##SVFROMDATE AND $$IsLTE:$Date:##SVTODATE
 
 ; Lightweight wrapper over Day Book that honors SVFromDate/SVToDate and company
 [Report: VyaapariDayBook]
