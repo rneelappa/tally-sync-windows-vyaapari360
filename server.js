@@ -213,7 +213,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Groups</ID>
+    <ID>Group Summary</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -230,7 +230,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>List of Stock Items</ID>
+    <ID>Stock Summary</ID>
   </HEADER>
   <BODY>
     <DESC>
@@ -518,6 +518,42 @@ function extractMasterData(parsedData, dataType) {
     }
     
     console.log(`⚠️ TDL format detected but no matching parser for ${dataType}`);
+    return items;
+  }
+  
+  // Handle Summary report formats (Group Summary, Stock Summary)
+  if (parsedData.ENVELOPE?.DSPACCNAME) {
+    console.log(`📋 Found ${dataType} in Summary report format (DSPACCNAME)`);
+    const nameArray = Array.isArray(parsedData.ENVELOPE.DSPACCNAME) ? 
+      parsedData.ENVELOPE.DSPACCNAME : [parsedData.ENVELOPE.DSPACCNAME];
+    
+    nameArray.forEach((nameItem, index) => {
+      if (nameItem.DSPDISPNAME) {
+        const item = {
+          GUID: `summary-${dataType.toLowerCase()}-${index}`, // Generate GUID for summary items
+          NAME: normalize(nameItem.DSPDISPNAME),
+          PARENT: '',
+          TYPE: dataType
+        };
+        
+        // Add additional fields based on type
+        if (dataType === 'GROUP') {
+          // Group summary data
+          items.push(item);
+        } else if (dataType === 'STOCKITEM') {
+          // Stock summary data - add stock info if available
+          const stockInfo = parsedData.ENVELOPE.DSPSTKINFO?.[index];
+          if (stockInfo?.DSPSTKCL) {
+            item.QUANTITY = normalize(stockInfo.DSPSTKCL.DSPCLQTY) || '';
+            item.RATE = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLRATE) || 0);
+            item.AMOUNT = parseFloat(normalize(stockInfo.DSPSTKCL.DSPCLAMTA) || 0);
+          }
+          items.push(item);
+        }
+      }
+    });
+    
+    console.log(`✅ Extracted ${items.length} ${dataType} items from Summary format`);
     return items;
   }
   
