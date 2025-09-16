@@ -195,7 +195,7 @@ function createTallyRequest(reportType = 'DayBook', fromDate = '', toDate = '') 
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
     <TYPE>Data</TYPE>
-    <ID>Trial Balance</ID>
+    <ID>List of Accounts</ID>
   </HEADER>
   <BODY>
     <DESC>
