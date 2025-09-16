@@ -445,6 +445,80 @@ function extractMasterData(parsedData, dataType) {
   } else if (parsedData.TALLYMESSAGE) {
     dataSource = parsedData.TALLYMESSAGE;
     console.log(`📋 Found ${dataType} in TALLYMESSAGE structure`);
+  } else if (parsedData.ENVELOPE && Object.keys(parsedData.ENVELOPE).length > 0) {
+    // Handle TDL field format (F01, F02, F03...)
+    console.log(`📋 Found ${dataType} in TDL field format (F01, F02...)`);
+    
+    // Parse TDL field format based on dataType
+    const envelope = parsedData.ENVELOPE;
+    if (dataType === 'LEDGER' && envelope.LedFld01) {
+      // Process ledger TDL format
+      const ledgerCount = Array.isArray(envelope.LedFld01) ? envelope.LedFld01.length : 1;
+      for (let i = 0; i < ledgerCount; i++) {
+        const getField = (fieldName) => {
+          const field = envelope[fieldName];
+          return Array.isArray(field) ? field[i] : field;
+        };
+        
+        items.push({
+          GUID: normalize(getField('LedFld01')),
+          NAME: normalize(getField('LedFld02')),
+          PARENT: normalize(getField('LedFld03')) || '',
+          ALIAS: normalize(getField('LedFld04')) || '',
+          DESCRIPTION: normalize(getField('LedFld05')) || '',
+          NARRATION: normalize(getField('LedFld06')) || '',
+          ISREVENUE: normalize(getField('LedFld07')) === '1',
+          ISDEEMEDPOSITIVE: normalize(getField('LedFld08')) === '1',
+          OPENINGBALANCE: parseFloat(normalize(getField('LedFld09')) || 0),
+          CLOSINGBALANCE: parseFloat(normalize(getField('LedFld10')) || 0)
+        });
+      }
+      console.log(`✅ Extracted ${items.length} ${dataType} items from TDL format`);
+      return items;
+    } else if (dataType === 'GROUP' && envelope.GrpFld01) {
+      // Process group TDL format
+      const groupCount = Array.isArray(envelope.GrpFld01) ? envelope.GrpFld01.length : 1;
+      for (let i = 0; i < groupCount; i++) {
+        const getField = (fieldName) => {
+          const field = envelope[fieldName];
+          return Array.isArray(field) ? field[i] : field;
+        };
+        
+        items.push({
+          GUID: normalize(getField('GrpFld01')),
+          NAME: normalize(getField('GrpFld02')),
+          PARENT: normalize(getField('GrpFld03')) || '',
+          PRIMARYGROUP: normalize(getField('GrpFld04')) || '',
+          ISREVENUE: normalize(getField('GrpFld05')) === '1',
+          ISDEEMEDPOSITIVE: normalize(getField('GrpFld06')) === '1'
+        });
+      }
+      console.log(`✅ Extracted ${items.length} ${dataType} items from TDL format`);
+      return items;
+    } else if (dataType === 'VOUCHERTYPE' && envelope.VtpFld01) {
+      // Process voucher type TDL format
+      const vtpCount = Array.isArray(envelope.VtpFld01) ? envelope.VtpFld01.length : 1;
+      for (let i = 0; i < vtpCount; i++) {
+        const getField = (fieldName) => {
+          const field = envelope[fieldName];
+          return Array.isArray(field) ? field[i] : field;
+        };
+        
+        items.push({
+          GUID: normalize(getField('VtpFld01')),
+          NAME: normalize(getField('VtpFld02')),
+          PARENT: normalize(getField('VtpFld03')) || '',
+          NUMBERINGMETHOD: normalize(getField('VtpFld04')) || '',
+          ISDEEMEDPOSITIVE: normalize(getField('VtpFld05')) === '1',
+          AFFECTSSTOCK: normalize(getField('VtpFld06')) === '1'
+        });
+      }
+      console.log(`✅ Extracted ${items.length} ${dataType} items from TDL format`);
+      return items;
+    }
+    
+    console.log(`⚠️ TDL format detected but no matching parser for ${dataType}`);
+    return items;
   }
   
   if (!dataSource) {
@@ -1758,7 +1832,7 @@ app.post('/api/v1/tallysync/sync/:companyId/:divisionId', async (req, res) => {
       xmlData = await fetchTallyData(companyId, divisionId, 'DayBook', '', '');
     }
     const parsedData = await parseTallyResponse(xmlData);
-    const vouchers = extractVouchers(parsedData, fromDate, toDate);
+    const vouchers = extractVouchers(parsedData, '', '');
     
     console.log(`📋 TallySync: Found ${vouchers.length} vouchers`);
     
