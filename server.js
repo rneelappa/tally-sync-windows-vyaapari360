@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+console.log('🚀 Server starting with normalize function fix...');
 
 // Middleware
 app.use(helmet());
