@@ -71,6 +71,12 @@
       "required_fields": ["guid", "name"],
       "sync_priority": 5
     },
+    "mst_uom": {
+      "railway_table": "units",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 5
+    },
     "mst_godown": {
       "railway_table": "godowns",
       "primary_key": "guid", 
@@ -94,6 +100,49 @@
       "primary_key": "guid",
       "required_fields": ["guid", "voucher_guid", "stock_item_name", "quantity"],
       "sync_priority": 12
+    },
+    "mst_stockitem": {
+      "railway_table": "stock_items",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 3
+    },
+    "mst_costcentre": {
+      "railway_table": "cost_centres",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 7
+    },
+    "mst_currency": {
+      "railway_table": "currencies",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 8
+    },
+    "mst_company": {
+      "railway_table": "companies",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 9
+    },
+    "trn_bill": {
+      "railway_table": "bills",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 13
+    },
+    "trn_payhead": {
+      "railway_table": "payheads",
+      "primary_key": "guid",
+      "required_fields": ["guid", "name"],
+      "sync_priority": 14
+    },
+    "trn_attendance": {
+      "railway_table": "attendance",
+      "primary_key": "guid",
+      "required_fields": ["guid", "employee_name"],
+      "sync_priority": 15
     }
   }
 }
+
